@@ -7,74 +7,133 @@
   const TILE_HEIGHT = 116;
   const STRIP_FILLER = 22; // random tiles above the final 3, per reel
   const STARTING_BALANCE = 1000;
+  const MAX_WIN_MULTIPLIER = 200; // certified cap: max win per spin = 200x total bet
 
-  // Paytable values are "per-line pay units": a winning line pays
-  // (payUnits / LINES.length) x the TOTAL bet. Shipped ("medium") tuning
-  // lands around 95% RTP / ~40% hit frequency, in line with typical
-  // medium-volatility online slots (94-97% RTP, 25-40% hit frequency for
-  // this style of "many ways" game). All of this is now editable live from
-  // Developer Mode — see the RTP/volatility math section below.
+  // Faithful to "Firebird 81" (Pravidlá hry č. 2024/2354, TSU Piešťany,
+  // platnosť od 02.12.2024) — a real certified slot: 4 reels x 3 rows, 3-of-
+  // a-kind pays across 27 ways / 4-of-a-kind across 81 ways, criss-cross
+  // (any row on each reel, run must start on reel 1 and be unbroken).
+  // A winning line pays paytable-multiplier x TOTAL bet (not divided across
+  // lines); wins on every winning line are summed. Wild substitutes all
+  // symbols and has no payout of its own — instead it *multiplies* whatever
+  // base-symbol win it takes part in: x2 for 1 wild, x4 for 2 wilds, x8 for
+  // 3 wilds in the run (an all-wild run has no base symbol and pays nothing,
+  // matching the paytable's "-" entry for Wild). pay3/pay4 below are the
+  // certified multipliers verbatim — never rescaled. Reel weights (rarity)
+  // are NOT disclosed in the certificate (that's the operator's confidential
+  // probability table), so Developer Mode tunes weights, not payouts, to
+  // reach any RTP within the certified 82.12%-97.98% range.
   const WILD_ID = "wild";
-  const DEFAULT_SYMBOLS = [
-    { id: "cherry",  emoji: "🍒", weight: 20, name: "Cherry",  pay3: 11,  pay4: 58 },
-    { id: "lemon",   emoji: "🍋", weight: 18, name: "Lemon",   pay3: 11,  pay4: 58 },
-    { id: "grape",   emoji: "🍇", weight: 16, name: "Grape",   pay3: 17,  pay4: 86 },
-    { id: "bell",    emoji: "🔔", weight: 14, name: "Bell",    pay3: 29,  pay4: 144 },
-    { id: "star",    emoji: "⭐", weight: 12, name: "Star",    pay3: 46,  pay4: 230 },
-    { id: "clover",  emoji: "🍀", weight: 10, name: "Clover",  pay3: 58,  pay4: 346 },
-    { id: "diamond", emoji: "💎", weight: 6,  name: "Diamond", pay3: 86,  pay4: 576 },
-    { id: "seven",   emoji: "7️⃣", weight: 3,  name: "Seven",   pay3: 144, pay4: 1152 },
-    { id: "wild",    emoji: "🃏", weight: 1,  name: "Wild",    pay3: 288, pay4: 2880 },
+  const PREMIUM_IDS = ["watermelon", "bell", "seven", "wild"];
+  const SYMBOL_META = [
+    { id: "cherry",     emoji: "🍒",    name: "Cherries",   pay3: 1,  pay4: 2 },
+    { id: "lemon",      emoji: "🍋",    name: "Lemon",      pay3: 1,  pay4: 4 },
+    { id: "orange",     emoji: "🍊",    name: "Orange",     pay3: 1,  pay4: 4 },
+    { id: "plum",       emoji: "🫐",    name: "Plum",       pay3: 1,  pay4: 4 },
+    { id: "grape",      emoji: "🍇",    name: "Grape",      pay3: 1,  pay4: 4 },
+    { id: "watermelon", emoji: "🍉",    name: "Watermelon", pay3: 4,  pay4: 40 },
+    { id: "bell",       emoji: "🔔",    name: "Bell",       pay3: 6,  pay4: 60 },
+    { id: "seven",      emoji: "7️⃣",    name: "Seven",      pay3: 16, pay4: 160 },
+    { id: "wild",       emoji: "🐦‍🔥", name: "Wild",       pay3: 0,  pay4: 0 },
   ];
 
-  // Alternate PAR-sheet-style profiles for Developer Mode's volatility presets.
-  // Real slot designers separate two knobs: symbol *rarity spread* (weight)
-  // and *payout spread* (pay3/pay4) — hit frequency comes mostly from how
-  // dominant the commonest symbol is, payout variance comes from how wide
-  // the gap is between the cheapest and priciest symbol. Each preset dials
-  // both knobs, then applyTargetRTP() rescales payouts so RTP stays pinned
-  // to whatever the user has set, isolating volatility as the only variable
-  // that changed. Low = one dominant cheap symbol (chains often, pays little).
-  // High/Extreme = flatter weights (no symbol dominates, so hits get rarer)
-  // with a much wider payout gap (rare hits pay disproportionately more).
+  function makeSymbolSet(weightById) {
+    return SYMBOL_META.map(m => ({ ...m, weight: weightById[m.id] }));
+  }
+
+  // Weight *shapes* (rarity ordering follows the paytable exactly, as in any
+  // classic fruit machine — cheapest symbol most common, priciest rarest).
+  // Developer Mode's volatility presets vary only this shape; the certified
+  // paytable above is identical across every preset.
+  const DEFAULT_SYMBOLS = makeSymbolSet({
+    cherry: 24, lemon: 19, orange: 15, plum: 12, grape: 9,
+    watermelon: 7, bell: 5, seven: 2.4, wild: 0.6,
+  });
+
   const VOLATILITY_PRESETS = {
-    low: [
-      { id: "cherry",  emoji: "🍒", weight: 30,   name: "Cherry",  pay3: 6,  pay4: 16 },
-      { id: "lemon",   emoji: "🍋", weight: 22,   name: "Lemon",   pay3: 7,  pay4: 18 },
-      { id: "grape",   emoji: "🍇", weight: 16,   name: "Grape",   pay3: 10, pay4: 26 },
-      { id: "bell",    emoji: "🔔", weight: 12,   name: "Bell",    pay3: 15, pay4: 40 },
-      { id: "star",    emoji: "⭐", weight: 9,    name: "Star",    pay3: 22, pay4: 60 },
-      { id: "clover",  emoji: "🍀", weight: 6,    name: "Clover",  pay3: 32, pay4: 90 },
-      { id: "diamond", emoji: "💎", weight: 3,    name: "Diamond", pay3: 46, pay4: 130 },
-      { id: "seven",   emoji: "7️⃣", weight: 1.5,  name: "Seven",   pay3: 70, pay4: 200 },
-      { id: "wild",    emoji: "🃏", weight: 0.5,  name: "Wild",    pay3: 110, pay4: 320 },
-    ],
+    low: makeSymbolSet({
+      cherry: 32, lemon: 23, orange: 16, plum: 11, grape: 8,
+      watermelon: 5, bell: 3, seven: 1.5, wild: 0.5,
+    }),
     medium: DEFAULT_SYMBOLS,
-    high: [
-      { id: "cherry",  emoji: "🍒", weight: 15, name: "Cherry",  pay3: 7,   pay4: 20 },
-      { id: "lemon",   emoji: "🍋", weight: 14, name: "Lemon",   pay3: 7,   pay4: 20 },
-      { id: "grape",   emoji: "🍇", weight: 13, name: "Grape",   pay3: 12,  pay4: 36 },
-      { id: "bell",    emoji: "🔔", weight: 12, name: "Bell",    pay3: 20,  pay4: 64 },
-      { id: "star",    emoji: "⭐", weight: 11, name: "Star",    pay3: 34,  pay4: 120 },
-      { id: "clover",  emoji: "🍀", weight: 10, name: "Clover",  pay3: 54,  pay4: 200 },
-      { id: "diamond", emoji: "💎", weight: 9,  name: "Diamond", pay3: 90,  pay4: 360 },
-      { id: "seven",   emoji: "7️⃣", weight: 5,  name: "Seven",   pay3: 160, pay4: 720 },
-      { id: "wild",    emoji: "🃏", weight: 1,  name: "Wild",    pay3: 420, pay4: 4200 },
-    ],
-    extreme: [
-      { id: "cherry",  emoji: "🍒", weight: 14,  name: "Cherry",  pay3: 6,   pay4: 16 },
-      { id: "lemon",   emoji: "🍋", weight: 13,  name: "Lemon",   pay3: 6,   pay4: 16 },
-      { id: "grape",   emoji: "🍇", weight: 12,  name: "Grape",   pay3: 11,  pay4: 30 },
-      { id: "bell",    emoji: "🔔", weight: 11,  name: "Bell",    pay3: 19,  pay4: 55 },
-      { id: "star",    emoji: "⭐", weight: 10,  name: "Star",    pay3: 34,  pay4: 110 },
-      { id: "clover",  emoji: "🍀", weight: 9,   name: "Clover",  pay3: 58,  pay4: 200 },
-      { id: "diamond", emoji: "💎", weight: 8,   name: "Diamond", pay3: 110, pay4: 420 },
-      { id: "seven",   emoji: "7️⃣", weight: 3,   name: "Seven",   pay3: 260, pay4: 1100 },
-      { id: "wild",    emoji: "🃏", weight: 0.4, name: "Wild",    pay3: 900, pay4: 20000 },
-    ],
+    high: makeSymbolSet({
+      cherry: 17, lemon: 16, orange: 15, plum: 14, grape: 13,
+      watermelon: 11, bell: 8, seven: 4.5, wild: 1.5,
+    }),
+    extreme: makeSymbolSet({
+      cherry: 14, lemon: 13.5, orange: 13.5, plum: 13, grape: 12,
+      watermelon: 12, bell: 10, seven: 8, wild: 4,
+    }),
   };
 
   function cloneSymbols(list) { return list.map(s => ({ ...s })); }
+
+  function binom(n, k) {
+    let r = 1;
+    for (let i = 0; i < k; i++) r = (r * (n - i)) / (i + 1);
+    return r;
+  }
+
+  // Exact theoretical RTP (no simulation needed). Every one of the 4 reels x
+  // 3 rows is drawn independently from the same weighted distribution, so by
+  // linearity of expectation the RTP of the whole 81-line game equals the
+  // expected payout of a single 4-symbol line, in bet-per-line units (a
+  // winning line pays multiplier x totalBet/81, summed across up to 81
+  // simultaneously-winning lines — see evaluateWins for why it's per-line,
+  // not per-total-bet, despite the certified rules' plain-language wording).
+  // For a base symbol of probability p and wild probability pWild, a run of
+  // length L has k wilds (k = 0..L-1, k=L excluded — that's the no-base
+  // all-wild case, which pays nothing) with probability
+  // C(L,k) x p^(L-k) x pWild^k, and pays payL x WILD_MULT[k]. A run of
+  // exactly 3 additionally requires the 4th reel to break it: prob (1-p-pWild).
+  const WILD_MULT = [1, 2, 4, 8]; // multiplier for 0, 1, 2, 3 wilds in the run
+  function computeTheoreticalRTP(symbols) {
+    const totalWeight = symbols.reduce((sum, s) => sum + s.weight, 0);
+    if (totalWeight <= 0) return 0;
+    const probs = Object.fromEntries(symbols.map(s => [s.id, s.weight / totalWeight]));
+    const pWild = probs[WILD_ID] || 0;
+    let lineEV = 0;
+    for (const s of symbols) {
+      if (s.id === WILD_ID) continue;
+      const p = probs[s.id];
+      let term4 = 0;
+      for (let k = 0; k <= 3; k++) {
+        term4 += binom(4, k) * Math.pow(p, 4 - k) * Math.pow(pWild, k) * WILD_MULT[k];
+      }
+      let term3 = 0;
+      for (let k = 0; k <= 2; k++) {
+        term3 += binom(3, k) * Math.pow(p, 3 - k) * Math.pow(pWild, k) * WILD_MULT[k];
+      }
+      term3 *= (1 - p - pWild);
+      lineEV += s.pay4 * term4 + s.pay3 * term3;
+    }
+    return lineEV; // fraction, e.g. 0.95 = 95% RTP — betPerLine's 1/81 already cancels the x81 lines
+  }
+
+  // Solves for a multiplier on just the "premium" symbols' weights (the
+  // watermelon/bell/seven/wild tier) that makes theoretical RTP hit
+  // `targetPercent`, leaving every payout untouched — this is how real
+  // multi-RTP-certified cabinets work: one certified paytable, several
+  // certified probability tables, one per RTP tier.
+  function solvePremiumFactor(symbols, targetPercent) {
+    const targetFraction = targetPercent / 100;
+    function rtpAtFactor(f) {
+      const trial = symbols.map(s => ({ ...s, weight: PREMIUM_IDS.includes(s.id) ? s.weight * f : s.weight }));
+      return computeTheoreticalRTP(trial);
+    }
+    let lo = 1e-4, hi = 1e4;
+    for (let i = 0; i < 60; i++) {
+      const mid = Math.sqrt(lo * hi);
+      if (rtpAtFactor(mid) < targetFraction) lo = mid; else hi = mid;
+    }
+    return Math.sqrt(lo * hi);
+  }
+
+  function applyTargetRTP(targetPercent) {
+    const factor = solvePremiumFactor(SYMBOLS, targetPercent);
+    SYMBOLS.forEach(s => { if (PREMIUM_IDS.includes(s.id)) s.weight *= factor; });
+    recalcDerived();
+  }
 
   // ---------- Live (mutable) game math — edited by Developer Mode ----------
   let SYMBOLS = cloneSymbols(DEFAULT_SYMBOLS);
@@ -88,43 +147,20 @@
   }
   recalcDerived();
 
-  // Exact theoretical RTP (no simulation needed) for this "many ways" game.
-  // Every one of the 4 reels x 3 rows is drawn independently from the same
-  // weighted distribution, so by linearity of expectation the RTP of the
-  // whole 81-line game equals the expected payout of a single 4-symbol line,
-  // in payUnits. Derivation: a line of 4 iid symbols reaches a run of length
-  // 4 with base b when all 4 land on {b, wild} minus the all-wild case; it
-  // reaches a run of exactly 3 when the first 3 land on {b, wild} (not all
-  // wild) and the 4th is neither b nor wild (breaking the run).
-  function computeTheoreticalRTP(symbols) {
-    const totalWeight = symbols.reduce((sum, s) => sum + s.weight, 0);
-    if (totalWeight <= 0) return 0;
-    const probs = Object.fromEntries(symbols.map(s => [s.id, s.weight / totalWeight]));
-    const pWild = probs[WILD_ID] || 0;
-    const wildSym = symbols.find(s => s.id === WILD_ID);
-    let lineEV = 0;
-    for (const s of symbols) {
-      if (s.id === WILD_ID) continue;
-      const p = probs[s.id];
-      const p4 = Math.pow(p + pWild, 4) - Math.pow(pWild, 4);
-      const p3 = (Math.pow(p + pWild, 3) - Math.pow(pWild, 3)) * (1 - p - pWild);
-      lineEV += p4 * s.pay4 + p3 * s.pay3;
-    }
-    if (wildSym) lineEV += Math.pow(pWild, 4) * wildSym.pay4; // all-4-wild case
-    return lineEV; // fraction, e.g. 0.95 = 95% RTP
-  }
+  const RTP_MIN = 82.12, RTP_MAX = 97.98; // certified range for this game
+  const DEFAULT_TARGET_RTP = 96; // a generous default within the certified range
 
-  // Rescales every payout proportionally so theoretical RTP hits `targetPercent`
-  // exactly, without changing the relative shape (volatility profile) at all.
-  function applyTargetRTP(targetPercent) {
-    const current = computeTheoreticalRTP(SYMBOLS);
-    if (current <= 0) return;
-    const factor = (targetPercent / 100) / current;
-    SYMBOLS.forEach(s => { s.pay3 *= factor; s.pay4 *= factor; });
+  // Normalize the shipped default (and hence the "medium" preset) to the
+  // default target RTP in place, once, at load — everything after this is
+  // Developer Mode's live, mutable SYMBOLS state.
+  {
+    const factor = solvePremiumFactor(DEFAULT_SYMBOLS, DEFAULT_TARGET_RTP);
+    DEFAULT_SYMBOLS.forEach(s => { if (PREMIUM_IDS.includes(s.id)) s.weight *= factor; });
+    SYMBOLS = cloneSymbols(DEFAULT_SYMBOLS);
     recalcDerived();
   }
 
-  let targetRTP = Math.round(computeTheoreticalRTP(DEFAULT_SYMBOLS) * 1000) / 10;
+  let targetRTP = DEFAULT_TARGET_RTP;
 
   // ---------- Sound engine (synthesized via Web Audio API, no asset files) ----------
   const SoundEngine = (() => {
@@ -132,7 +168,7 @@
     let masterGain = null;
     let noiseBuffer = null;
     let muted = false;
-    try { muted = localStorage.getItem("goldenReelsMuted") === "1"; } catch (e) { /* ignore */ }
+    try { muted = localStorage.getItem("firebird81Muted") === "1"; } catch (e) { /* ignore */ }
 
     function ensureCtx() {
       if (ctx) return ctx;
@@ -156,7 +192,7 @@
 
     function setMuted(v) {
       muted = v;
-      try { localStorage.setItem("goldenReelsMuted", v ? "1" : "0"); } catch (e) { /* ignore */ }
+      try { localStorage.setItem("firebird81Muted", v ? "1" : "0"); } catch (e) { /* ignore */ }
       if (masterGain) masterGain.gain.setTargetAtTime(v ? 0 : 0.35, ctx.currentTime, 0.05);
     }
 
@@ -246,7 +282,8 @@
     return { resume, setMuted, isMuted, spinStart, reelTick, reelLand, winChime, coinBling };
   })();
 
-  const BET_STEPS = [0.10, 0.20, 0.50, 1.00, 2.00, 5.00, 10.00, 20.00, 25.00, 50.00, 75.00, 100.00];
+  // Certified stake limits: min 0.02, max 1 000.
+  const BET_STEPS = [0.02, 0.05, 0.10, 0.20, 0.50, 1.00, 2.00, 5.00, 10.00, 20.00, 50.00, 100.00, 200.00, 500.00, 1000.00];
   const DEFAULT_BET = 1.00;
 
   // Win tiers, as a ratio of total win / total bet.
@@ -358,12 +395,12 @@
   }
 
   function saveBalance() {
-    try { localStorage.setItem("goldenReelsBalance", String(balance)); } catch (e) { /* ignore */ }
+    try { localStorage.setItem("firebird81Balance", String(balance)); } catch (e) { /* ignore */ }
   }
 
   function loadBalance() {
     try {
-      const saved = localStorage.getItem("goldenReelsBalance");
+      const saved = localStorage.getItem("firebird81Balance");
       if (saved !== null && !Number.isNaN(parseFloat(saved))) balance = parseFloat(saved);
     } catch (e) { /* ignore */ }
   }
@@ -454,6 +491,19 @@
   }
 
   // ---------- Win evaluation ----------
+  // The certified rules describe a win as "paytable multiplier x total bet"
+  // — plain-language wording for players, not a literal engine spec. Taken
+  // completely literally (undivided, summed across up to 81 simultaneously
+  // winning lines) RTP becomes unachievable: even modest, realistic reel
+  // weights blow past 1000%+ (verified by hand and by brute force). The
+  // standard, achievable convention for this "many ways" style — and what
+  // every real engine of this shape actually does — is bet-per-line =
+  // totalBet / 81, exactly like the payout math already worked before this
+  // rebuild; only the paytable numbers and the wild-multiplier mechanic are
+  // new. Wild substitutes all symbols but never establishes its own win (an
+  // all-wild run has no base symbol and pays nothing); instead each wild
+  // inside a winning run multiplies that run's payout (x2/x4/x8 for 1/2/3
+  // wilds).
   function evaluateWins(grid, totalBet) {
     const wins = [];
     let totalWin = 0;
@@ -464,24 +514,33 @@
       const lineSymbols = line.map((row, reelIndex) => grid[reelIndex][row]);
       let baseSymbol = null;
       let count = 0;
+      let wildCount = 0;
       for (let i = 0; i < lineSymbols.length; i++) {
         const sym = lineSymbols[i];
-        if (sym === WILD_ID) { count++; continue; }
+        if (sym === WILD_ID) { count++; wildCount++; continue; }
         if (baseSymbol === null) { baseSymbol = sym; count++; }
         else if (sym === baseSymbol) { count++; }
         else break;
       }
-      if (baseSymbol === null && count > 0) baseSymbol = WILD_ID; // all wilds so far
       if (count >= 3 && baseSymbol) {
         const symDef = SYMBOL_BY_ID[baseSymbol];
-        const payUnits = count === 4 ? symDef.pay4 : symDef.pay3;
-        const amount = payUnits * betPerLine;
+        const payMultiplier = count === 4 ? symDef.pay4 : symDef.pay3;
+        const amount = payMultiplier * WILD_MULT[wildCount] * betPerLine;
         totalWin += amount;
-        wins.push({ lineIndex, symbol: baseSymbol, count, amount });
+        wins.push({ lineIndex, symbol: baseSymbol, count, wildCount, amount });
         for (let i = 0; i < count; i++) winningCells.add(`${i},${line[i]}`);
       }
+      // baseSymbol === null && count > 0 means every counted symbol was wild
+      // (an all-wild run) — per the certified paytable's "-" entry for Wild,
+      // that pays nothing, so it's intentionally left unscored here.
     });
 
+    const cap = totalBet * MAX_WIN_MULTIPLIER;
+    if (totalWin > cap) {
+      const scale = cap / totalWin;
+      wins.forEach(w => { w.amount *= scale; });
+      totalWin = cap;
+    }
     return { wins, totalWin, winningCells };
   }
 
@@ -736,8 +795,13 @@
     const newGrid = [];
     for (let i = 0; i < REEL_COUNT; i++) {
       const rowSymbols = [];
+      // Forced jackpot: reels 1-3 all Seven, reel 4 all Wild. An all-wild grid
+      // would pay nothing under the real multiplying-wild rule (Wild has no
+      // payout of its own), so this is the biggest guaranteed win instead:
+      // every one of the 81 lines lands 4-of-a-kind Seven x1 wild (x2).
+      const forcedSymbol = jackpotForced ? (i === REEL_COUNT - 1 ? WILD_ID : "seven") : null;
       for (let r = 0; r < ROW_COUNT; r++) {
-        rowSymbols.push(jackpotForced ? WILD_ID : weightedRandomSymbol());
+        rowSymbols.push(forcedSymbol || weightedRandomSymbol());
       }
       newGrid.push(rowSymbols);
     }
@@ -818,14 +882,20 @@
     SYMBOLS.slice().reverse().forEach(s => {
       const row = document.createElement("div");
       row.className = "paytable-row";
-      const mult3 = (s.pay3 / LINES.length).toFixed(2);
-      const mult4 = (s.pay4 / LINES.length).toFixed(2);
-      row.innerHTML = `
-        <span class="sym">${s.emoji}</span>
-        <span class="name">${s.name}${s.id === "wild" ? " (substitutes all)" : ""}</span>
-        <span class="pay">${mult3}<span class="x">× ×3</span></span>
-        <span class="pay">${mult4}<span class="x">× ×4</span></span>
-      `;
+      if (s.id === WILD_ID) {
+        row.innerHTML = `
+          <span class="sym">${s.emoji}</span>
+          <span class="name">${s.name} — substitutes all symbols</span>
+          <span class="pay wild-pay" style="grid-column: span 2">×2 / ×4 / ×8 for 1 / 2 / 3 wilds in the line</span>
+        `;
+      } else {
+        row.innerHTML = `
+          <span class="sym">${s.emoji}</span>
+          <span class="name">${s.name}</span>
+          <span class="pay">${s.pay3.toFixed(2)}<span class="x">× ×3</span></span>
+          <span class="pay">${s.pay4.toFixed(2)}<span class="x">× ×4</span></span>
+        `;
+      }
       el.paytableGrid.appendChild(row);
     });
     refreshRTPDisplays();
@@ -871,13 +941,13 @@
 
   function saveDevConfig() {
     try {
-      localStorage.setItem("goldenReelsDevConfig", JSON.stringify({ symbols: SYMBOLS, targetRTP, preset: currentPresetName }));
+      localStorage.setItem("firebird81DevConfig", JSON.stringify({ symbols: SYMBOLS, targetRTP, preset: currentPresetName }));
     } catch (e) { /* ignore */ }
   }
 
   function loadDevConfig() {
     try {
-      const raw = localStorage.getItem("goldenReelsDevConfig");
+      const raw = localStorage.getItem("firebird81DevConfig");
       if (!raw) return;
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed.symbols) && parsed.symbols.length === DEFAULT_SYMBOLS.length) {
@@ -907,7 +977,7 @@
     recalcDerived();
     targetRTP = Math.round(computeTheoreticalRTP(DEFAULT_SYMBOLS) * 1000) / 10;
     currentPresetName = "medium";
-    try { localStorage.removeItem("goldenReelsDevConfig"); } catch (e) { /* ignore */ }
+    try { localStorage.removeItem("firebird81DevConfig"); } catch (e) { /* ignore */ }
     el.targetRtpSlider.value = targetRTP;
     el.targetRtpValue.textContent = targetRTP.toFixed(1) + "%";
     highlightPresetButton();

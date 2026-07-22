@@ -20,7 +20,16 @@
       "PowerShell(Stop-Process -Id 7740 -Force)",
       "PowerShell(Get-Process -Id 7740 -ErrorAction SilentlyContinue)",
       "Bash(rm \"C:\\\\Users\\\\icerv\\\\Desktop\\\\slot\\\\.claude\\\\serve.ps1\")",
-      "PowerShell(powershell -ExecutionPolicy Bypass -File \"C:\\\\Users\\\\icerv\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-icerv-Desktop-slot\\\\3122c4e0-6843-43c4-bd03-1725688ade11\\\\scratchpad\\\\serve.ps1\")"
+      "PowerShell(powershell -ExecutionPolicy Bypass -File \"C:\\\\Users\\\\icerv\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-icerv-Desktop-slot\\\\3122c4e0-6843-43c4-bd03-1725688ade11\\\\scratchpad\\\\serve.ps1\")",
+      "Bash(where.exe python *)",
+      "Bash(where.exe pdftotext *)",
+      "Read(//c/Program Files/**)",
+      "Read(//c/Program Files \\\\\\(x86\\\\\\)/**)",
+      "Bash(\"/c/Program Files/Git/mingw64/bin/pdftotext.exe\" -layout \"C:\\\\Users\\\\icerv\\\\Desktop\\\\slot\\\\Firebird81.pdf\" \"C:\\\\Users\\\\icerv\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-icerv-Desktop-slot\\\\3122c4e0-6843-43c4-bd03-1725688ade11\\\\scratchpad\\\\firebird81.txt\")",
+      "Bash(\"/c/Program Files/Git/mingw64/bin/pdftotext.exe\" -v)",
+      "Bash(where.exe gswin64c *)",
+      "Bash(\"/c/Program Files/Git/mingw64/bin/pdftotext.exe\" \"C:\\\\Users\\\\icerv\\\\Desktop\\\\slot\\\\Firebird81.pdf\" -)",
+      "Bash(echo \"exit: $?\")"
     ]
   }
 }

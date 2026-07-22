@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Golden Reels — Demo Slot (81 Lines)</title>
+<title>Firebird 81 — Unofficial Demo (81 Lines)</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -12,8 +12,8 @@
   <header class="topbar">
     <div class="brand">
       <span class="brand-icon">🎰</span>
-      <span class="brand-name">Golden Reels</span>
-      <span class="demo-badge">DEMO — NO REAL MONEY</span>
+      <span class="brand-name">Firebird 81</span>
+      <span class="demo-badge">UNOFFICIAL DEMO — NO REAL MONEY</span>
     </div>
     <div class="topbar-actions">
       <button class="mini-btn icon-btn" id="mute-toggle" title="Mute sound">🔊</button>
@@ -102,7 +102,7 @@
     </div>
   </footer>
 
-  <p class="disclaimer">For entertainment purposes only. Credits have no monetary value and cannot be redeemed for cash or prizes.</p>
+  <p class="disclaimer">Unofficial fan-made demo, not affiliated with or endorsed by the makers of the certified "Firebird 81" cabinet — built from its publicly filed rules (Pravidlá hry č. 2024/2354, TSU Piešťany) for entertainment/educational use only. Credits have no monetary value and cannot be redeemed for cash or prizes.</p>
 </div>
 
 <div class="modal-backdrop" id="paytable-backdrop">
@@ -111,7 +111,7 @@
       <h2 id="paytable-title">Paytable</h2>
       <button class="modal-close" id="close-paytable" aria-label="Close paytable">✕</button>
     </div>
-    <p class="modal-sub">Multipliers apply to your total bet per winning line. Matches count consecutively from the leftmost reel, checked across all 81 lines — several lines often win on the same spin. 🃏 Wild substitutes for all symbols.</p>
+    <p class="modal-sub">Multipliers apply to your total bet per winning line. Matches count consecutively from the leftmost reel, checked across all 81 lines — several lines often win on the same spin. 🐦‍🔥 Wild substitutes for all symbols and multiplies the win it takes part in (×2 / ×4 / ×8 for 1 / 2 / 3 wilds) — it has no payout of its own.</p>
     <p class="paytable-math" id="paytable-math"></p>
     <div class="paytable-grid" id="paytable-grid"></div>
   </div>
@@ -131,7 +131,7 @@
       <h2 id="dev-title">🛠 Developer Mode — RTP Lab</h2>
       <button class="modal-close" id="close-devmode" aria-label="Close developer mode">✕</button>
     </div>
-    <p class="modal-sub">This rewrites the game's real math (symbol weights and paytable), so every number below reflects actual spins — the same probability model real slot PAR sheets use. Changes are saved locally and apply immediately.</p>
+    <p class="modal-sub">Firebird 81's certified paytable (Pravidlá hry č. 2024/2354) is fixed and never rescaled here — only reel weights (the operator's confidential probability table) are tuned, the same lever real multi-RTP-certified cabinets use to offer several RTP tiers off one certified prize table. Changes are saved locally and apply immediately to real spins.</p>
 
     <div class="dev-section">
       <div class="dev-math-grid" id="dev-math-grid"></div>
@@ -145,17 +145,17 @@
         <button class="preset-btn" data-preset="high">High</button>
         <button class="preset-btn" data-preset="extreme">Extreme</button>
       </div>
-      <p class="dev-hint">Real designers tune two separate knobs: symbol rarity spread (weight) and payout spread (pay×3/pay×4). Presets change both, then rescale to your target RTP below — so you're comparing volatility with RTP held constant, same as it works in a real PAR sheet.</p>
+      <p class="dev-hint">Every preset uses the exact same certified paytable — only how common each symbol is changes. Low concentrates weight on one cheap symbol (chains often, pays little); High/Extreme flatten the weights (no symbol dominates, hits get rarer) so the rare, expensive symbols carry more of the RTP. Presets re-apply your target RTP below, so you're comparing volatility with RTP held constant.</p>
     </div>
 
     <div class="dev-section">
       <div class="dev-section-title">Target RTP</div>
       <div class="target-rtp-row">
-        <input type="range" id="target-rtp-slider" min="80" max="99" step="0.1" value="95">
-        <span id="target-rtp-value">95.0%</span>
+        <input type="range" id="target-rtp-slider" min="82.12" max="97.98" step="0.01" value="96">
+        <span id="target-rtp-value">96.00%</span>
         <button class="text-btn small" id="apply-target-rtp">Apply</button>
       </div>
-      <p class="dev-hint">Scales every payout proportionally so theoretical RTP matches this target exactly, without touching the volatility shape. Real online slots typically sit 94–97% RTP; land-based cabinets run lower, often 85–92%.</p>
+      <p class="dev-hint">Solves for the reel-weight scaling (on Watermelon/Bell/Seven/Wild) that hits this RTP exactly — the certified paytable itself is never touched. Bounded to 82.12%–97.98%, the range certified for Firebird 81 across its available RTP configurations.</p>
     </div>
 
     <div class="dev-section">
@@ -166,7 +166,7 @@
           <tbody id="dev-symbol-tbody"></tbody>
         </table>
       </div>
-      <p class="dev-hint">Weight controls how often a symbol shows up (drives hit frequency). Pay ×3 / ×4 control how much a match is worth (drives volatility and RTP). Edits apply instantly to real spins.</p>
+      <p class="dev-hint">Weight controls how often a symbol shows up (drives hit frequency). Pay ×3 / ×4 are the certified paytable values (Wild is 0/0 — it multiplies wins instead of paying on its own). Editing either applies instantly to real spins; edit pay values only if you're deliberately deviating from the certified table.</p>
     </div>
 
     <div class="dev-section">
