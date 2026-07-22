@@ -3,7 +3,24 @@
     "allow": [
       "Bash(git --version)",
       "Bash(git init *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git config *)",
+      "Bash(git commit -m ' *)",
+      "Bash(gh auth *)",
+      "PowerShell(Get-Command gh -ErrorAction SilentlyContinue)",
+      "PowerShell(winget install --id GitHub.cli -e --source winget --accept-package-agreements --accept-source-agreements)",
+      "WebSearch",
+      "Bash(node --check script.js)",
+      "PowerShell(node --check \"C:\\\\Users\\\\icerv\\\\Desktop\\\\slot\\\\script.js\")",
+      "PowerShell(if \\($?\\) { \"SYNTAX OK\" })",
+      "Bash(where python *)",
+      "Bash(where python3 *)",
+      "Bash(where py *)",
+      "PowerShell(powershell -ExecutionPolicy Bypass -File \"C:\\\\Users\\\\icerv\\\\Desktop\\\\slot\\\\.claude\\\\serve.ps1\")",
+      "PowerShell(Stop-Process -Id 7740 -Force)",
+      "PowerShell(Get-Process -Id 7740 -ErrorAction SilentlyContinue)",
+      "Bash(rm \"C:\\\\Users\\\\icerv\\\\Desktop\\\\slot\\\\.claude\\\\serve.ps1\")",
+      "PowerShell(powershell -ExecutionPolicy Bypass -File \"C:\\\\Users\\\\icerv\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-icerv-Desktop-slot\\\\3122c4e0-6843-43c4-bd03-1725688ade11\\\\scratchpad\\\\serve.ps1\")"
     ]
   }
 }
