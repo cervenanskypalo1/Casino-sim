@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Golden Reels — Demo Slot (81 Lines)</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="table-felt">
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-icon">🎰</span>
+      <span class="brand-name">Golden Reels</span>
+      <span class="demo-badge">DEMO — NO REAL MONEY</span>
+    </div>
+    <div class="balance-box">
+      <span class="label">Balance</span>
+      <span class="value" id="balance">1,000.00</span>
+      <button class="mini-btn" id="reset-balance" title="Reset demo balance to 1,000.00">Reset</button>
+    </div>
+  </header>
+
+  <main class="game">
+    <div class="machine">
+      <div class="machine-glow"></div>
+      <div class="reels-frame">
+        <div class="reels" id="reels">
+          <!-- 4 reels injected by JS -->
+        </div>
+        <div class="reels-shade top"></div>
+        <div class="reels-shade bottom"></div>
+      </div>
+
+      <canvas class="confetti-canvas" id="confetti-canvas"></canvas>
+
+      <div class="win-banner" id="win-banner">
+        <span class="win-banner-title" id="win-banner-title"></span>
+        <span class="win-banner-amount" id="win-banner-amount"></span>
+      </div>
+    </div>
+
+    <aside class="side-panel">
+      <div class="panel-card">
+        <div class="panel-row">
+          <span class="panel-label">Win</span>
+          <span class="panel-value gold" id="last-win">0.00 <small id="last-win-mult"></small></span>
+        </div>
+        <div class="panel-row">
+          <span class="panel-label">Lines</span>
+          <span class="panel-value">81</span>
+        </div>
+      </div>
+
+      <div class="panel-card lines-list-card">
+        <div class="panel-title">Winning Lines</div>
+        <ul id="lines-list" class="lines-list">
+          <li class="lines-list-empty">Spin to play</li>
+        </ul>
+      </div>
+
+      <button class="text-btn" id="open-paytable">View Paytable</button>
+    </aside>
+  </main>
+
+  <footer class="controls">
+    <div class="bet-controls">
+      <div class="bet-block">
+        <span class="ctrl-label">Bet</span>
+        <div class="stepper">
+          <button id="bet-down" aria-label="Decrease bet">−</button>
+          <span id="bet-amount">1.00</span>
+          <button id="bet-up" aria-label="Increase bet">+</button>
+        </div>
+      </div>
+      <button class="text-btn small" id="max-bet">Max Bet</button>
+    </div>
+
+    <div class="spin-controls">
+      <button class="spin-btn" id="spin-btn">
+        <span id="spin-btn-label">SPIN</span>
+      </button>
+      <div class="autoplay-controls">
+        <select id="autoplay-count" title="Autoplay spins">
+          <option value="0">Autoplay</option>
+          <option value="10">10 spins</option>
+          <option value="25">25 spins</option>
+          <option value="50">50 spins</option>
+          <option value="100">100 spins</option>
+        </select>
+        <button class="mini-btn" id="autoplay-stop" disabled>Stop</button>
+      </div>
+    </div>
+  </footer>
+
+  <p class="disclaimer">For entertainment purposes only. Credits have no monetary value and cannot be redeemed for cash or prizes.</p>
+</div>
+
+<div class="modal-backdrop" id="paytable-backdrop">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="paytable-title">
+    <div class="modal-header">
+      <h2 id="paytable-title">Paytable</h2>
+      <button class="modal-close" id="close-paytable" aria-label="Close paytable">✕</button>
+    </div>
+    <p class="modal-sub">Multipliers apply to your total bet per winning line. Matches count consecutively from the leftmost reel, checked across all 81 lines — several lines often win on the same spin. 🃏 Wild substitutes for all symbols.</p>
+    <div class="paytable-grid" id="paytable-grid"></div>
+  </div>
+</div>
+
+<div class="jackpot-overlay" id="jackpot-overlay">
+  <div class="jackpot-flash"></div>
+  <div class="jackpot-text" id="jackpot-text">JACKPOT!!!</div>
+  <div class="coin-rain" id="coin-rain"></div>
+</div>
+
+<div class="secret-hint" id="secret-hint">✨</div>
+
+<script src="script.js"></script>
+</body>
+</html>
