@@ -37,13 +37,12 @@
 
   <div class="panel-card">
     <div class="dev-section-title">Table</div>
+    <p class="dev-hint">Click a number for a Straight bet. Click the small dots on the borders between numbers for Split (edge, 2 numbers), Corner (intersection, 4 numbers), Street or Six Line (bottom edge, 3 or 6 numbers) — hover a dot to see what it places. Click a placed chip to remove that bet.</p>
     <div class="roulette-table-wrap">
       <div class="roulette-grid" id="roulette-grid"></div>
     </div>
-    <p class="dev-hint" id="selection-info">Click numbers on the table to build a Straight / Split / Street / Corner / Six Line bet.</p>
     <div class="session-buttons">
-      <button class="text-btn small" id="place-selection" disabled>Place Bet</button>
-      <button class="text-btn small" id="clear-selection">Clear Selection</button>
+      <button class="text-btn small" id="clear-all-bets">Clear All Bets</button>
     </div>
   </div>
 
@@ -56,9 +55,6 @@
     <ul id="bets-list" class="lines-list">
       <li class="lines-list-empty">No bets placed yet</li>
     </ul>
-    <div class="session-buttons">
-      <button class="text-btn small" id="clear-all-bets">Clear All Bets</button>
-    </div>
   </div>
 
   <div class="panel-card">
@@ -107,6 +103,23 @@
     <div class="session-chart-wrap">
       <svg id="session-chart" class="session-chart" viewBox="0 0 600 220" preserveAspectRatio="none"></svg>
     </div>
+  </div>
+
+  <div class="panel-card">
+    <div class="dev-section-title">Optimal Bet Amount</div>
+    <p class="dev-hint">Scales your entire current bet spread up or down by a common factor and re-runs the session simulation above (same Starting Balance / Spins / Sessions settings) at each scale, exactly like the slot's best-bet-size sweep — flagging the largest scale that keeps bust risk at or below 5% for this balance.</p>
+    <button class="text-btn small" id="run-amount-sweep">Find Optimal Bet Amount</button>
+    <div class="bet-sweep-results" id="amount-sweep-results"></div>
+  </div>
+
+  <div class="panel-card">
+    <div class="dev-section-title">Bet Type Risk Profile</div>
+    <p class="dev-hint"><strong>This is not a search for a "better" bet.</strong> Every roulette bet has identical 36/37 = 97.30% theoretical RTP — that's inherent to a fair wheel. What genuinely differs is volatility: fewer numbers covered means rarer, bigger wins and higher bust risk for the exact same expected value. This compares that risk profile across bet-coverage categories at equal stake (same Starting Balance / Spins / Sessions settings above).</p>
+    <div class="session-controls">
+      <label>Stake / Spin<input type="number" id="comparison-stake" min="0.1" step="1" value="10"></label>
+    </div>
+    <button class="text-btn small" id="run-type-comparison">Compare Bet Types</button>
+    <div class="bet-sweep-results" id="type-comparison-results"></div>
   </div>
 
   <p class="disclaimer">Unofficial fan-made demo for entertainment/educational use only. Credits have no monetary value and cannot be redeemed for cash or prizes.</p>

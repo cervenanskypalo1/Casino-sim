@@ -34,9 +34,11 @@ Linked from the "🛠 RTP Lab" button in the main game (opens in a new tab), sha
 
 European roulette (single zero, 37 pockets). Unlike the slot, the wheel has **no configurable weights** — `spinWheel()` is a genuinely uniform, unweighted draw over all 37 pockets every time, exactly like a physical wheel. The entire house edge comes from payout odds, not a rigged RNG:
 
-- **Full betting table**: click numbers to build Straight/Split/Street/Corner/Six Line bets (with live adjacency validation — e.g. trying to split two non-adjacent numbers is rejected with an explanation), plus one-click outside bets (Column, Dozen, Red, Black, Odd, Even, 1-18, 19-36).
+- **Full betting table with a real casino-style hotspot overlay**: click a number for Straight, or click one of ~105 small dots positioned exactly on the edges/corners between numbers to place Split, Street, Corner, or Six Line bets in a single click (hover a dot to preview what it places) — plus one-click outside bets (Column, Dozen, Red, Black, Odd, Even, 1-18, 19-36). Every placed bet shows as a gold chip badge right on the table (click a chip to remove it), alongside a full text list.
 - **Live theoretical RTP**, computed from whatever bet mix you've placed. Every standard bet's expected return per unit staked is identical (36/37 ≈ 97.30%), so any mix always computes to the same value — a nice built-in correctness check on the payout math itself.
 - A **spin simulator** and a **bankroll session simulator** (bust probability, P(session RTP ≥ 100%), best session, max drawdown, balance-over-time fan chart) — same structure as the slot's, but playing your current bet spread every spin instead of a fixed paytable.
+- An **optimal bet amount sweep**: scales your entire current bet spread by 0.1×–100× and re-runs the session simulation at each scale, flagging the largest that keeps bust risk ≤5% — the multi-bet-portfolio equivalent of the slot's best-bet-size sweep.
+- A **bet-type risk profile comparison**: every bet category (Straight → Split → Street → Corner → Six Line → 12-Number → Even Money) has *identical* 97.30% theoretical RTP — that's inherent to a fair wheel, not a strategy. This isn't a search for a "better" bet; it compares volatility instead, at equal stake — fewer numbers covered means rarer, bigger wins and higher bust risk for the same expected value.
 
 ## Files
 

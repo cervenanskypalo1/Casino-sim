@@ -940,11 +940,7 @@ html, body {
 }
 
 .roulette-grid {
-  display: grid;
-  grid-template-columns: 56px repeat(12, 44px) 56px;
-  grid-template-rows: repeat(3, 48px) 40px 40px;
-  gap: 3px;
-  min-width: 720px;
+  position: relative; /* width/height/child positions are all set inline by JS (single source of truth shared with hotspot/chip math) */
 }
 
 .roul-cell {
@@ -957,10 +953,10 @@ html, body {
   cursor: pointer;
   user-select: none;
   color: #fff;
-  transition: transform 0.1s ease, box-shadow 0.15s ease;
+  box-sizing: border-box;
+  transition: box-shadow 0.15s ease;
 }
-.roul-cell:hover { transform: scale(1.05); box-shadow: 0 0 0 2px var(--gold-dim) inset; }
-.roul-cell.selected { box-shadow: 0 0 0 3px var(--gold-bright) inset; }
+.roul-cell:hover { box-shadow: 0 0 0 2px var(--gold-dim) inset; z-index: 1; }
 
 .roul-red { background: #b5342f; }
 .roul-black { background: #1c2420; border: 1px solid #333; }
@@ -974,8 +970,39 @@ html, body {
   font-size: 0.7rem;
   text-align: center;
   padding: 4px;
+  box-sizing: border-box;
 }
 .roul-outside.roul-red, .roul-outside.roul-black { color: #fff; font-size: 0.75rem; }
+
+.roul-hotspot {
+  border-radius: 50%;
+  background: rgba(244, 201, 93, 0.35);
+  border: 1px solid rgba(244, 201, 93, 0.55);
+  cursor: pointer;
+  z-index: 5;
+  transition: transform 0.1s ease, background 0.15s ease;
+}
+.roul-hotspot:hover {
+  background: var(--gold-bright);
+  border-color: var(--gold-bright);
+  transform: scale(1.6);
+}
+
+.roul-chip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, var(--gold-bright), var(--gold) 55%, var(--gold-dim) 100%);
+  border: 2px solid #24170a;
+  color: #24170a;
+  font-weight: 800;
+  font-size: 0.62rem;
+  cursor: pointer;
+  z-index: 10;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+}
+.roul-chip:hover { outline: 2px solid var(--red); }
 
 .bet-remove {
   background: none;

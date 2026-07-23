@@ -293,6 +293,63 @@ window.RouletteEngine = (() => {
     step();
   }
 
+  // ---------- Optimal bet amount sweep ----------
+  // Scales every placed bet's amount by a common factor and re-runs the
+  // session batch at each scale, exactly like the slot's best-bet-size
+  // sweep — generalized to a multi-bet portfolio by scaling the whole
+  // portfolio's stakes together rather than a single bet size.
+  const AMOUNT_SCALES = [0.1, 0.25, 0.5, 1, 2, 5, 10, 25, 50, 100];
+  function runBetAmountSweep(bets, startingBalance, maxSpins, sessionCount, onProgress, onDone) {
+    const results = [];
+    let idx = 0;
+    function step() {
+      const scale = AMOUNT_SCALES[idx];
+      const scaledBets = bets.map(b => ({ ...b, amount: b.amount * scale }));
+      const stakePerSpin = scaledBets.reduce((s, b) => s + b.amount, 0);
+      runSessionBatch(scaledBets, startingBalance, maxSpins, sessionCount, () => {}, (agg) => {
+        results.push({ scale, stakePerSpin, ...agg });
+        idx++;
+        onProgress(idx / AMOUNT_SCALES.length);
+        if (idx < AMOUNT_SCALES.length) setTimeout(step, 0);
+        else onDone(results);
+      });
+    }
+    step();
+  }
+
+  // ---------- Bet-type risk-profile comparison ----------
+  // Every category below has IDENTICAL theoretical RTP (36/37 = 97.2973%) —
+  // that's inherent to a fair wheel, not a strategy choice. What genuinely
+  // differs is volatility: fewer numbers covered means rarer, bigger wins
+  // and higher bust risk for the exact same expected value. This compares
+  // that risk profile across categories at equal stake — it is not, and
+  // cannot be, a search for a "better" number or bet.
+  const BET_TYPE_CATEGORIES = [
+    { key: "straight", label: "Straight (1 number, 35:1)", build: (amt) => [{ type: "straight", numbers: [17], amount: amt }] },
+    { key: "split", label: "Split (2 numbers, 17:1)", build: (amt) => [{ type: "split", numbers: [1, 4], amount: amt }] },
+    { key: "street", label: "Street (3 numbers, 11:1)", build: (amt) => [{ type: "street", numbers: [1, 2, 3], amount: amt }] },
+    { key: "corner", label: "Corner (4 numbers, 8:1)", build: (amt) => [{ type: "corner", numbers: [1, 2, 4, 5], amount: amt }] },
+    { key: "sixline", label: "Six Line (6 numbers, 5:1)", build: (amt) => [{ type: "sixline", numbers: [1, 2, 3, 4, 5, 6], amount: amt }] },
+    { key: "dozen", label: "12-Number: Column/Dozen (2:1)", build: (amt) => [{ type: "dozen", group: 1, amount: amt }] },
+    { key: "evenmoney", label: "Even Money: 18-Number (1:1)", build: (amt) => [{ type: "red", amount: amt }] },
+  ];
+  function runBetTypeComparison(startingBalance, maxSpins, sessionCount, stakePerSpin, onProgress, onDone) {
+    const results = [];
+    let idx = 0;
+    function step() {
+      const cat = BET_TYPE_CATEGORIES[idx];
+      const bets = cat.build(stakePerSpin);
+      runSessionBatch(bets, startingBalance, maxSpins, sessionCount, () => {}, (agg) => {
+        results.push({ key: cat.key, label: cat.label, ...agg });
+        idx++;
+        onProgress(idx / BET_TYPE_CATEGORIES.length);
+        if (idx < BET_TYPE_CATEGORIES.length) setTimeout(step, 0);
+        else onDone(results);
+      });
+    }
+    step();
+  }
+
   return {
     POCKETS, BET_PAYOUT_RATIO, BET_LABELS,
     colorOf, spinWheel,
@@ -301,5 +358,7 @@ window.RouletteEngine = (() => {
     numbersInColumn, numbersInDozen, allRedNumbers, allBlackNumbers,
     numbersForBet, betKey, betLabel, computeTheoreticalRTP, evaluateSpin,
     runSimulation, simulateSession, runSessionBatch,
+    AMOUNT_SCALES, runBetAmountSweep,
+    BET_TYPE_CATEGORIES, runBetTypeComparison,
   };
 })();
