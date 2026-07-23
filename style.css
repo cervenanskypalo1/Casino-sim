@@ -114,6 +114,8 @@ html, body {
 }
 
 .mini-btn {
+  display: inline-flex;
+  align-items: center;
   background: #1d2b25;
   border: 1px solid var(--panel-line);
   color: var(--text-dim);
@@ -121,6 +123,7 @@ html, body {
   padding: 6px 10px;
   border-radius: 999px;
   cursor: pointer;
+  text-decoration: none;
   transition: all 0.15s ease;
 }
 .mini-btn:hover:not(:disabled) { color: var(--text); border-color: var(--gold-dim); }

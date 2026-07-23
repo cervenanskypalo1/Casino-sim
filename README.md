@@ -6,7 +6,7 @@ A browser-based, no-build slot machine demo modeled on the real certified "Fireb
 
 ## Playing it
 
-Just open `index.html` in a browser. There's nothing to install or build.
+Open `index.html` in a browser to play. Open `lab.html` for the standalone RTP Lab. There's nothing to install or build. (`file://` works, but the two pages only stay in sync with each other over `localStorage` when served from the same http(s) origin — e.g. via GitHub Pages or any static file server — since browsers isolate storage per-origin more strictly for local files.)
 
 ## What's here
 
@@ -16,21 +16,26 @@ Just open `index.html` in a browser. There's nothing to install or build.
 - **200× max-win cap per spin** and **€0.02–€1,000 stake limits**, both from the certified rules.
 - **Autoplay**, a **Riziko-style win banner** with tiered celebrations (Win / Big / Mega / Jackpot), confetti, and a full-screen jackpot overlay.
 - **Sound** — spin whoosh, reel ticks and landing thunks, tiered win chimes, and jackpot coin sounds, all synthesized live via the Web Audio API (no audio files). Mute toggle included.
-- **Developer Mode** (🛠 button, top bar) — a full RTP/volatility lab:
-  - Exact theoretical RTP and house edge, computed in closed form (not simulated) and verified against brute-force enumeration.
-  - Four volatility presets (Low/Medium/High/Extreme) that vary only reel-weight shape — the certified paytable is identical across every preset.
-  - A **Target RTP** slider bounded to the certified **82.12%–97.98%** range. Since the paytable can't be altered, this solves for reel weights instead — the same lever real multi-RTP-certified cabinets use to offer several RTP tiers off one certified prize table.
-  - An advanced per-symbol table (weight, pay×3, pay×4) for manual experimentation.
-  - A spin simulator (1,000–500,000 spins, chunked so it never freezes the tab) reporting measured RTP, hit frequency, volatility index (σ), biggest win, and a win-size histogram.
-  - A bankroll session simulator: real starting balance + real bet size + N spins, reporting bust probability, max drawdown, and a balance-over-time fan chart.
-  - A best-bet-size sweep that finds the largest bet keeping bust risk ≤5% for a given balance.
-  - A secret keyboard code (`zolca`) forces the next spin to a big, capped jackpot — handy for testing celebration states without grinding for one.
+- **A secret keyboard code** (`zolca`) forces the next spin to a big, capped jackpot — handy for testing celebration states without grinding for one.
+
+### RTP Lab (`lab.html`) — a standalone sub-site
+
+Linked from the "🛠 RTP Lab" button in the main game (opens in a new tab), sharing the same math engine and `localStorage`-persisted config, so a change made in the lab applies to real spins in the game next time it's loaded:
+
+- Exact theoretical RTP and house edge, computed in closed form (not simulated) and verified against brute-force enumeration.
+- Four volatility presets (Low/Medium/High/Extreme) that vary only reel-weight shape — the certified paytable is identical across every preset.
+- A **Target RTP** slider bounded to the certified **82.12%–97.98%** range. Since the paytable can't be altered, this solves for reel weights instead — the same lever real multi-RTP-certified cabinets use to offer several RTP tiers off one certified prize table.
+- An advanced per-symbol table (weight, pay×3, pay×4) for manual experimentation.
+- A **spin simulator** (1,000–500,000 spins, chunked so it never freezes the tab) reporting measured RTP, hit frequency, volatility index (σ), biggest win, and a win-size histogram.
+- A **bankroll session simulator**: real starting balance + real bet size + N spins, reporting bust probability, **P(session RTP ≥ 100%)** (the odds a session ends with the player ahead), **best session** (the single highest final balance across all simulated sessions), max drawdown, and a balance-over-time fan chart.
+- A **best-bet-size sweep** across every standard stake, showing bust risk and P(RTP ≥ 100%) per bet size and flagging the largest bet that keeps bust risk ≤5% for a given balance.
 
 ## Files
 
-- `index.html` — markup
-- `style.css` — all styling
-- `script.js` — game logic, sound engine, and the Developer Mode RTP lab (single IIFE, no build step)
+- `index.html` / `script.js` — the playable game (markup + reel/UI/sound logic)
+- `lab.html` / `lab.js` — the standalone RTP Lab sub-site
+- `engine.js` — shared, DOM-independent engine: certified symbols/paytable, exact RTP math, win evaluation, and every simulation (spin simulator, session simulator, bet sweep). Single source of truth used by both pages.
+- `style.css` — all styling, shared by both pages
 
 ## Not implemented
 

@@ -29,7 +29,8 @@
       "Bash(\"/c/Program Files/Git/mingw64/bin/pdftotext.exe\" -v)",
       "Bash(where.exe gswin64c *)",
       "Bash(\"/c/Program Files/Git/mingw64/bin/pdftotext.exe\" \"C:\\\\Users\\\\icerv\\\\Desktop\\\\slot\\\\Firebird81.pdf\" -)",
-      "Bash(echo \"exit: $?\")"
+      "Bash(echo \"exit: $?\")",
+      "Bash(git push *)"
     ]
   }
 }

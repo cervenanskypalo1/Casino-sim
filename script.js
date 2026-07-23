@@ -1,166 +1,15 @@
 (() => {
   "use strict";
 
+  const Engine = window.Firebird81Engine;
+  const { REEL_COUNT, ROW_COUNT, WILD_ID, BET_STEPS, DEFAULT_BET, TIERS } = Engine;
+
   // ---------- Config ----------
-  const REEL_COUNT = 4;
-  const ROW_COUNT = 3;
   const TILE_HEIGHT = 116;
   const STRIP_FILLER = 22; // random tiles above the final 3, per reel
   const STARTING_BALANCE = 1000;
-  const MAX_WIN_MULTIPLIER = 200; // certified cap: max win per spin = 200x total bet
 
-  // Faithful to "Firebird 81" (Pravidlá hry č. 2024/2354, TSU Piešťany,
-  // platnosť od 02.12.2024) — a real certified slot: 4 reels x 3 rows, 3-of-
-  // a-kind pays across 27 ways / 4-of-a-kind across 81 ways, criss-cross
-  // (any row on each reel, run must start on reel 1 and be unbroken).
-  // A winning line pays paytable-multiplier x TOTAL bet (not divided across
-  // lines); wins on every winning line are summed. Wild substitutes all
-  // symbols and has no payout of its own — instead it *multiplies* whatever
-  // base-symbol win it takes part in: x2 for 1 wild, x4 for 2 wilds, x8 for
-  // 3 wilds in the run (an all-wild run has no base symbol and pays nothing,
-  // matching the paytable's "-" entry for Wild). pay3/pay4 below are the
-  // certified multipliers verbatim — never rescaled. Reel weights (rarity)
-  // are NOT disclosed in the certificate (that's the operator's confidential
-  // probability table), so Developer Mode tunes weights, not payouts, to
-  // reach any RTP within the certified 82.12%-97.98% range.
-  const WILD_ID = "wild";
-  const PREMIUM_IDS = ["watermelon", "bell", "seven", "wild"];
-  const SYMBOL_META = [
-    { id: "cherry",     emoji: "🍒",    name: "Cherries",   pay3: 1,  pay4: 2 },
-    { id: "lemon",      emoji: "🍋",    name: "Lemon",      pay3: 1,  pay4: 4 },
-    { id: "orange",     emoji: "🍊",    name: "Orange",     pay3: 1,  pay4: 4 },
-    { id: "plum",       emoji: "🫐",    name: "Plum",       pay3: 1,  pay4: 4 },
-    { id: "grape",      emoji: "🍇",    name: "Grape",      pay3: 1,  pay4: 4 },
-    { id: "watermelon", emoji: "🍉",    name: "Watermelon", pay3: 4,  pay4: 40 },
-    { id: "bell",       emoji: "🔔",    name: "Bell",       pay3: 6,  pay4: 60 },
-    { id: "seven",      emoji: "7️⃣",    name: "Seven",      pay3: 16, pay4: 160 },
-    { id: "wild",       emoji: "🐦‍🔥", name: "Wild",       pay3: 0,  pay4: 0 },
-  ];
-
-  function makeSymbolSet(weightById) {
-    return SYMBOL_META.map(m => ({ ...m, weight: weightById[m.id] }));
-  }
-
-  // Weight *shapes* (rarity ordering follows the paytable exactly, as in any
-  // classic fruit machine — cheapest symbol most common, priciest rarest).
-  // Developer Mode's volatility presets vary only this shape; the certified
-  // paytable above is identical across every preset.
-  const DEFAULT_SYMBOLS = makeSymbolSet({
-    cherry: 24, lemon: 19, orange: 15, plum: 12, grape: 9,
-    watermelon: 7, bell: 5, seven: 2.4, wild: 0.6,
-  });
-
-  const VOLATILITY_PRESETS = {
-    low: makeSymbolSet({
-      cherry: 32, lemon: 23, orange: 16, plum: 11, grape: 8,
-      watermelon: 5, bell: 3, seven: 1.5, wild: 0.5,
-    }),
-    medium: DEFAULT_SYMBOLS,
-    high: makeSymbolSet({
-      cherry: 17, lemon: 16, orange: 15, plum: 14, grape: 13,
-      watermelon: 11, bell: 8, seven: 4.5, wild: 1.5,
-    }),
-    extreme: makeSymbolSet({
-      cherry: 14, lemon: 13.5, orange: 13.5, plum: 13, grape: 12,
-      watermelon: 12, bell: 10, seven: 8, wild: 4,
-    }),
-  };
-
-  function cloneSymbols(list) { return list.map(s => ({ ...s })); }
-
-  function binom(n, k) {
-    let r = 1;
-    for (let i = 0; i < k; i++) r = (r * (n - i)) / (i + 1);
-    return r;
-  }
-
-  // Exact theoretical RTP (no simulation needed). Every one of the 4 reels x
-  // 3 rows is drawn independently from the same weighted distribution, so by
-  // linearity of expectation the RTP of the whole 81-line game equals the
-  // expected payout of a single 4-symbol line, in bet-per-line units (a
-  // winning line pays multiplier x totalBet/81, summed across up to 81
-  // simultaneously-winning lines — see evaluateWins for why it's per-line,
-  // not per-total-bet, despite the certified rules' plain-language wording).
-  // For a base symbol of probability p and wild probability pWild, a run of
-  // length L has k wilds (k = 0..L-1, k=L excluded — that's the no-base
-  // all-wild case, which pays nothing) with probability
-  // C(L,k) x p^(L-k) x pWild^k, and pays payL x WILD_MULT[k]. A run of
-  // exactly 3 additionally requires the 4th reel to break it: prob (1-p-pWild).
-  const WILD_MULT = [1, 2, 4, 8]; // multiplier for 0, 1, 2, 3 wilds in the run
-  function computeTheoreticalRTP(symbols) {
-    const totalWeight = symbols.reduce((sum, s) => sum + s.weight, 0);
-    if (totalWeight <= 0) return 0;
-    const probs = Object.fromEntries(symbols.map(s => [s.id, s.weight / totalWeight]));
-    const pWild = probs[WILD_ID] || 0;
-    let lineEV = 0;
-    for (const s of symbols) {
-      if (s.id === WILD_ID) continue;
-      const p = probs[s.id];
-      let term4 = 0;
-      for (let k = 0; k <= 3; k++) {
-        term4 += binom(4, k) * Math.pow(p, 4 - k) * Math.pow(pWild, k) * WILD_MULT[k];
-      }
-      let term3 = 0;
-      for (let k = 0; k <= 2; k++) {
-        term3 += binom(3, k) * Math.pow(p, 3 - k) * Math.pow(pWild, k) * WILD_MULT[k];
-      }
-      term3 *= (1 - p - pWild);
-      lineEV += s.pay4 * term4 + s.pay3 * term3;
-    }
-    return lineEV; // fraction, e.g. 0.95 = 95% RTP — betPerLine's 1/81 already cancels the x81 lines
-  }
-
-  // Solves for a multiplier on just the "premium" symbols' weights (the
-  // watermelon/bell/seven/wild tier) that makes theoretical RTP hit
-  // `targetPercent`, leaving every payout untouched — this is how real
-  // multi-RTP-certified cabinets work: one certified paytable, several
-  // certified probability tables, one per RTP tier.
-  function solvePremiumFactor(symbols, targetPercent) {
-    const targetFraction = targetPercent / 100;
-    function rtpAtFactor(f) {
-      const trial = symbols.map(s => ({ ...s, weight: PREMIUM_IDS.includes(s.id) ? s.weight * f : s.weight }));
-      return computeTheoreticalRTP(trial);
-    }
-    let lo = 1e-4, hi = 1e4;
-    for (let i = 0; i < 60; i++) {
-      const mid = Math.sqrt(lo * hi);
-      if (rtpAtFactor(mid) < targetFraction) lo = mid; else hi = mid;
-    }
-    return Math.sqrt(lo * hi);
-  }
-
-  function applyTargetRTP(targetPercent) {
-    const factor = solvePremiumFactor(SYMBOLS, targetPercent);
-    SYMBOLS.forEach(s => { if (PREMIUM_IDS.includes(s.id)) s.weight *= factor; });
-    recalcDerived();
-  }
-
-  // ---------- Live (mutable) game math — edited by Developer Mode ----------
-  let SYMBOLS = cloneSymbols(DEFAULT_SYMBOLS);
-  let SYMBOL_BY_ID = {};
-  let TOTAL_WEIGHT = 0;
-  let currentPresetName = "medium";
-
-  function recalcDerived() {
-    SYMBOL_BY_ID = Object.fromEntries(SYMBOLS.map(s => [s.id, s]));
-    TOTAL_WEIGHT = SYMBOLS.reduce((sum, s) => sum + s.weight, 0);
-  }
-  recalcDerived();
-
-  const RTP_MIN = 82.12, RTP_MAX = 97.98; // certified range for this game
-  const DEFAULT_TARGET_RTP = 96; // a generous default within the certified range
-
-  // Normalize the shipped default (and hence the "medium" preset) to the
-  // default target RTP in place, once, at load — everything after this is
-  // Developer Mode's live, mutable SYMBOLS state.
-  {
-    const factor = solvePremiumFactor(DEFAULT_SYMBOLS, DEFAULT_TARGET_RTP);
-    DEFAULT_SYMBOLS.forEach(s => { if (PREMIUM_IDS.includes(s.id)) s.weight *= factor; });
-    SYMBOLS = cloneSymbols(DEFAULT_SYMBOLS);
-    recalcDerived();
-  }
-
-  let targetRTP = DEFAULT_TARGET_RTP;
+  const SECRET_CODE = "zolca";
 
   // ---------- Sound engine (synthesized via Web Audio API, no asset files) ----------
   const SoundEngine = (() => {
@@ -282,29 +131,6 @@
     return { resume, setMuted, isMuted, spinStart, reelTick, reelLand, winChime, coinBling };
   })();
 
-  // Certified stake limits: min 0.02, max 1 000.
-  const BET_STEPS = [0.02, 0.05, 0.10, 0.20, 0.50, 1.00, 2.00, 5.00, 10.00, 20.00, 50.00, 100.00, 200.00, 500.00, 1000.00];
-  const DEFAULT_BET = 1.00;
-
-  // Win tiers, as a ratio of total win / total bet.
-  const TIERS = {
-    win:     { threshold: 0,  label: "WIN!",       confetti: 50 },
-    big:     { threshold: 5,  label: "BIG WIN!",   confetti: 90 },
-    mega:    { threshold: 15, label: "MEGA WIN!",  confetti: 160 },
-    jackpot: { threshold: 40, label: "JACKPOT!!!", confetti: 260 },
-  };
-
-  const SECRET_CODE = "zolca";
-
-  // ---------- 81 lines: every combination of row-picks across 4 reels ----------
-  const LINES = [];
-  for (let a = 0; a < ROW_COUNT; a++)
-    for (let b = 0; b < ROW_COUNT; b++)
-      for (let c = 0; c < ROW_COUNT; c++)
-        for (let d = 0; d < ROW_COUNT; d++)
-          LINES.push([a, b, c, d]);
-  // LINES.length === 81
-
   // ---------- State ----------
   let balance = STARTING_BALANCE;
   let betAmount = DEFAULT_BET;
@@ -347,43 +173,11 @@
     muteToggle: document.getElementById("mute-toggle"),
     rtpDisplay: document.getElementById("rtp-display"),
     paytableMath: document.getElementById("paytable-math"),
-    openDevmode: document.getElementById("open-devmode"),
-    closeDevmode: document.getElementById("close-devmode"),
-    devBackdrop: document.getElementById("dev-backdrop"),
-    devMathGrid: document.getElementById("dev-math-grid"),
-    presetButtons: Array.from(document.querySelectorAll("#preset-buttons .preset-btn")),
-    targetRtpSlider: document.getElementById("target-rtp-slider"),
-    targetRtpValue: document.getElementById("target-rtp-value"),
-    applyTargetRtp: document.getElementById("apply-target-rtp"),
-    devSymbolTbody: document.getElementById("dev-symbol-tbody"),
-    simSpins: document.getElementById("sim-spins"),
-    runSimulation: document.getElementById("run-simulation"),
-    simResults: document.getElementById("sim-results"),
-    simHistogram: document.getElementById("sim-histogram"),
-    resetDevmode: document.getElementById("reset-devmode"),
-    sessionBalanceInput: document.getElementById("session-balance"),
-    sessionBetInput: document.getElementById("session-bet"),
-    sessionSpinsSelect: document.getElementById("session-spins"),
-    sessionCountSelect: document.getElementById("session-count"),
-    runSessionSim: document.getElementById("run-session-sim"),
-    runBetSweep: document.getElementById("run-bet-sweep"),
-    sessionResults: document.getElementById("session-results"),
-    sessionChart: document.getElementById("session-chart"),
-    betSweepResults: document.getElementById("bet-sweep-results"),
   };
 
   // ---------- Helpers ----------
   function formatCredits(n) {
     return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  }
-
-  function weightedRandomSymbol() {
-    let r = Math.random() * TOTAL_WEIGHT;
-    for (const s of SYMBOLS) {
-      r -= s.weight;
-      if (r <= 0) return s.id;
-    }
-    return SYMBOLS[0].id;
   }
 
   function updateBalanceDisplay() {
@@ -423,7 +217,7 @@
     const initialGrid = [];
     for (let i = 0; i < REEL_COUNT; i++) {
       const rowSymbols = [];
-      for (let r = 0; r < ROW_COUNT; r++) rowSymbols.push(weightedRandomSymbol());
+      for (let r = 0; r < ROW_COUNT; r++) rowSymbols.push(Engine.weightedRandomSymbol());
       initialGrid.push(rowSymbols);
       renderStripStatic(reelStripEls[i], rowSymbols);
     }
@@ -441,7 +235,7 @@
     const tile = document.createElement("div");
     tile.className = "symbol-tile";
     tile.dataset.symbol = symId;
-    tile.textContent = SYMBOL_BY_ID[symId].emoji;
+    tile.textContent = Engine.getSymbolById(symId).emoji;
     return tile;
   }
 
@@ -450,7 +244,7 @@
     return new Promise(resolve => {
       const stripEl = reelStripEls[reelIndex];
       const fillerSymbols = [];
-      for (let i = 0; i < STRIP_FILLER; i++) fillerSymbols.push(weightedRandomSymbol());
+      for (let i = 0; i < STRIP_FILLER; i++) fillerSymbols.push(Engine.weightedRandomSymbol());
       const fullStrip = fillerSymbols.concat(finalSymbols);
 
       stripEl.style.transition = "none";
@@ -490,60 +284,6 @@
     });
   }
 
-  // ---------- Win evaluation ----------
-  // The certified rules describe a win as "paytable multiplier x total bet"
-  // — plain-language wording for players, not a literal engine spec. Taken
-  // completely literally (undivided, summed across up to 81 simultaneously
-  // winning lines) RTP becomes unachievable: even modest, realistic reel
-  // weights blow past 1000%+ (verified by hand and by brute force). The
-  // standard, achievable convention for this "many ways" style — and what
-  // every real engine of this shape actually does — is bet-per-line =
-  // totalBet / 81, exactly like the payout math already worked before this
-  // rebuild; only the paytable numbers and the wild-multiplier mechanic are
-  // new. Wild substitutes all symbols but never establishes its own win (an
-  // all-wild run has no base symbol and pays nothing); instead each wild
-  // inside a winning run multiplies that run's payout (x2/x4/x8 for 1/2/3
-  // wilds).
-  function evaluateWins(grid, totalBet) {
-    const wins = [];
-    let totalWin = 0;
-    const winningCells = new Set(); // "reelIndex,rowIndex"
-    const betPerLine = totalBet / LINES.length;
-
-    LINES.forEach((line, lineIndex) => {
-      const lineSymbols = line.map((row, reelIndex) => grid[reelIndex][row]);
-      let baseSymbol = null;
-      let count = 0;
-      let wildCount = 0;
-      for (let i = 0; i < lineSymbols.length; i++) {
-        const sym = lineSymbols[i];
-        if (sym === WILD_ID) { count++; wildCount++; continue; }
-        if (baseSymbol === null) { baseSymbol = sym; count++; }
-        else if (sym === baseSymbol) { count++; }
-        else break;
-      }
-      if (count >= 3 && baseSymbol) {
-        const symDef = SYMBOL_BY_ID[baseSymbol];
-        const payMultiplier = count === 4 ? symDef.pay4 : symDef.pay3;
-        const amount = payMultiplier * WILD_MULT[wildCount] * betPerLine;
-        totalWin += amount;
-        wins.push({ lineIndex, symbol: baseSymbol, count, wildCount, amount });
-        for (let i = 0; i < count; i++) winningCells.add(`${i},${line[i]}`);
-      }
-      // baseSymbol === null && count > 0 means every counted symbol was wild
-      // (an all-wild run) — per the certified paytable's "-" entry for Wild,
-      // that pays nothing, so it's intentionally left unscored here.
-    });
-
-    const cap = totalBet * MAX_WIN_MULTIPLIER;
-    if (totalWin > cap) {
-      const scale = cap / totalWin;
-      wins.forEach(w => { w.amount *= scale; });
-      totalWin = cap;
-    }
-    return { wins, totalWin, winningCells };
-  }
-
   function renderWinningCells(winningCells) {
     reelStripEls.forEach((stripEl, reelIndex) => {
       const tiles = stripEl.querySelectorAll(".symbol-tile");
@@ -575,7 +315,7 @@
       .sort((a, b) => b.amount - a.amount)
       .forEach(w => {
         const li = document.createElement("li");
-        const symDef = SYMBOL_BY_ID[w.symbol];
+        const symDef = Engine.getSymbolById(w.symbol);
         li.innerHTML = `<span>${symDef.emoji} ${symDef.name} ×${w.count} <span style="color:var(--text-dim)">(line ${w.lineIndex + 1})</span></span><span class="amt">${formatCredits(w.amount)}</span>`;
         el.linesList.appendChild(li);
       });
@@ -801,14 +541,14 @@
       // every one of the 81 lines lands 4-of-a-kind Seven x1 wild (x2).
       const forcedSymbol = jackpotForced ? (i === REEL_COUNT - 1 ? WILD_ID : "seven") : null;
       for (let r = 0; r < ROW_COUNT; r++) {
-        rowSymbols.push(forcedSymbol || weightedRandomSymbol());
+        rowSymbols.push(forcedSymbol || Engine.weightedRandomSymbol());
       }
       newGrid.push(rowSymbols);
     }
 
     // Evaluate the outcome up-front (before revealing) so we know whether this
     // spin earns the dramatic reel-by-reel jackpot reveal or the normal one.
-    const { wins, totalWin, winningCells } = evaluateWins(newGrid, totalBet);
+    const { wins, totalWin, winningCells } = Engine.evaluateWins(newGrid, totalBet);
     const tier = totalWin > 0 ? pickTier(totalWin, totalBet, jackpotForced) : null;
 
     const tickInterval = setInterval(() => SoundEngine.reelTick(), 110);
@@ -879,7 +619,7 @@
   // ---------- Paytable modal ----------
   function buildPaytable() {
     el.paytableGrid.innerHTML = "";
-    SYMBOLS.slice().reverse().forEach(s => {
+    Engine.getSymbols().slice().reverse().forEach(s => {
       const row = document.createElement("div");
       row.className = "paytable-row";
       if (s.id === WILD_ID) {
@@ -898,325 +638,16 @@
       }
       el.paytableGrid.appendChild(row);
     });
-    refreshRTPDisplays();
+    refreshRTPDisplay();
   }
 
-  // ---------- Developer Mode: RTP / volatility lab ----------
-  function refreshRTPDisplays() {
-    const rtp = computeTheoreticalRTP(SYMBOLS) * 100;
+  function refreshRTPDisplay() {
+    const rtp = Engine.computeTheoreticalRTP(Engine.getSymbols()) * 100;
     const houseEdge = 100 - rtp;
     if (el.rtpDisplay) el.rtpDisplay.textContent = rtp.toFixed(2) + "%";
     if (el.paytableMath) {
       el.paytableMath.textContent = `Theoretical RTP: ${rtp.toFixed(2)}%  ·  House edge: ${houseEdge.toFixed(2)}%`;
     }
-    if (el.devMathGrid) {
-      el.devMathGrid.innerHTML = `
-        <div class="panel-row"><span class="panel-label">Theoretical RTP</span><span class="panel-value gold">${rtp.toFixed(2)}%</span></div>
-        <div class="panel-row"><span class="panel-label">House Edge</span><span class="panel-value">${houseEdge.toFixed(2)}%</span></div>
-      `;
-    }
-  }
-
-  function roundNum(n) { return Math.round(n * 100) / 100; }
-
-  function buildDevSymbolTable() {
-    el.devSymbolTbody.innerHTML = "";
-    SYMBOLS.forEach((s, idx) => {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td class="dev-sym-cell">${s.emoji} ${s.name}</td>
-        <td><input type="number" min="0.1" step="0.1" value="${roundNum(s.weight)}" data-field="weight" data-idx="${idx}"></td>
-        <td><input type="number" min="0" step="0.5" value="${roundNum(s.pay3)}" data-field="pay3" data-idx="${idx}"></td>
-        <td><input type="number" min="0" step="0.5" value="${roundNum(s.pay4)}" data-field="pay4" data-idx="${idx}"></td>
-      `;
-      el.devSymbolTbody.appendChild(tr);
-    });
-  }
-
-  function highlightPresetButton() {
-    el.presetButtons.forEach(btn => {
-      btn.classList.toggle("active", btn.dataset.preset === currentPresetName);
-    });
-  }
-
-  function saveDevConfig() {
-    try {
-      localStorage.setItem("firebird81DevConfig", JSON.stringify({ symbols: SYMBOLS, targetRTP, preset: currentPresetName }));
-    } catch (e) { /* ignore */ }
-  }
-
-  function loadDevConfig() {
-    try {
-      const raw = localStorage.getItem("firebird81DevConfig");
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed.symbols) && parsed.symbols.length === DEFAULT_SYMBOLS.length) {
-        SYMBOLS = parsed.symbols.map(s => ({ ...s }));
-        recalcDerived();
-      }
-      if (typeof parsed.targetRTP === "number") targetRTP = parsed.targetRTP;
-      if (typeof parsed.preset === "string") currentPresetName = parsed.preset;
-    } catch (e) { /* ignore */ }
-  }
-
-  function applyPreset(name) {
-    const preset = VOLATILITY_PRESETS[name];
-    if (!preset) return;
-    SYMBOLS = cloneSymbols(preset);
-    recalcDerived();
-    applyTargetRTP(targetRTP);
-    currentPresetName = name;
-    highlightPresetButton();
-    buildDevSymbolTable();
-    buildPaytable();
-    saveDevConfig();
-  }
-
-  function resetDevMode() {
-    SYMBOLS = cloneSymbols(DEFAULT_SYMBOLS);
-    recalcDerived();
-    targetRTP = Math.round(computeTheoreticalRTP(DEFAULT_SYMBOLS) * 1000) / 10;
-    currentPresetName = "medium";
-    try { localStorage.removeItem("firebird81DevConfig"); } catch (e) { /* ignore */ }
-    el.targetRtpSlider.value = targetRTP;
-    el.targetRtpValue.textContent = targetRTP.toFixed(1) + "%";
-    highlightPresetButton();
-    buildDevSymbolTable();
-    buildPaytable();
-  }
-
-  // Fast, unanimated bulk spins — same weightedRandomSymbol()/evaluateWins()
-  // math as real spins — so measured RTP/hit-frequency/volatility can be
-  // compared against the exact theoretical numbers above (law of large
-  // numbers: the more spins, the closer measured tracks theoretical).
-  // Runs in chunks via setTimeout so even a large spin count never freezes
-  // the tab — each chunk yields back to the browser before starting the next.
-  function runSimulation(spinsCount, onProgress, onDone) {
-    const bet = 1;
-    const CHUNK = 20000;
-    let i = 0;
-    let totalBet = 0, totalWon = 0, hits = 0, biggestMult = 0;
-    let sumRatio = 0, sumRatioSq = 0;
-    const buckets = [0, 0, 0, 0, 0]; // none, win, big, mega, jackpot
-
-    function step() {
-      const end = Math.min(i + CHUNK, spinsCount);
-      for (; i < end; i++) {
-        const grid = [];
-        for (let r = 0; r < REEL_COUNT; r++) {
-          const row = [];
-          for (let c = 0; c < ROW_COUNT; c++) row.push(weightedRandomSymbol());
-          grid.push(row);
-        }
-        const { totalWin } = evaluateWins(grid, bet);
-        totalBet += bet;
-        totalWon += totalWin;
-        const ratio = totalWin / bet;
-        sumRatio += ratio;
-        sumRatioSq += ratio * ratio;
-        if (totalWin > 0) {
-          hits++;
-          if (ratio > biggestMult) biggestMult = ratio;
-          if (ratio >= TIERS.jackpot.threshold) buckets[4]++;
-          else if (ratio >= TIERS.mega.threshold) buckets[3]++;
-          else if (ratio >= TIERS.big.threshold) buckets[2]++;
-          else buckets[1]++;
-        } else {
-          buckets[0]++;
-        }
-      }
-      if (i < spinsCount) {
-        onProgress(i / spinsCount);
-        setTimeout(step, 0);
-        return;
-      }
-      const mean = sumRatio / spinsCount;
-      const variance = Math.max(0, sumRatioSq / spinsCount - mean * mean);
-      onDone({
-        spins: spinsCount,
-        measuredRTP: totalBet > 0 ? totalWon / totalBet : 0,
-        hitFrequency: hits / spinsCount,
-        biggestMult,
-        volatilityIndex: Math.sqrt(variance),
-        buckets,
-      });
-    }
-    step();
-  }
-
-  function renderSimResults(r) {
-    el.simResults.innerHTML = `
-      <div class="panel-row"><span class="panel-label">Spins</span><span class="panel-value">${r.spins.toLocaleString()}</span></div>
-      <div class="panel-row"><span class="panel-label">Measured RTP</span><span class="panel-value gold">${(r.measuredRTP * 100).toFixed(2)}%</span></div>
-      <div class="panel-row"><span class="panel-label">Hit Frequency</span><span class="panel-value">${(r.hitFrequency * 100).toFixed(1)}%</span></div>
-      <div class="panel-row"><span class="panel-label">Volatility Index (σ)</span><span class="panel-value">${r.volatilityIndex.toFixed(2)}</span></div>
-      <div class="panel-row"><span class="panel-label">Biggest Win</span><span class="panel-value">${r.biggestMult.toFixed(2)}×</span></div>
-    `;
-  }
-
-  function renderHistogram(buckets, spins) {
-    const labels = ["No win", "Win", "Big", "Mega", "Jackpot"];
-    const max = Math.max(...buckets, 1);
-    el.simHistogram.innerHTML = buckets.map((count, i) => {
-      const pct = spins > 0 ? ((count / spins) * 100).toFixed(2) : "0.00";
-      const heightPct = (count / max) * 100;
-      return `<div class="hist-bar-col">
-        <div class="hist-bar" style="height:${heightPct}%"></div>
-        <div class="hist-label">${labels[i]}</div>
-        <div class="hist-pct">${pct}%</div>
-      </div>`;
-    }).join("");
-  }
-
-  // ---------- Bankroll session simulator ----------
-  // Unlike runSimulation() above (which normalizes to a 1-credit bet, since
-  // RTP itself doesn't depend on bet size), this spends a *real* bet from a
-  // *real* starting balance every spin, so it's where bet size actually
-  // shows up: bigger bets burn through the same bankroll faster and swing
-  // harder, which is exactly what "volatility" feels like at the table.
-  function simulateSession(startingBalance, bet, maxSpins) {
-    let balance = startingBalance;
-    const path = [balance];
-    let busted = false;
-    let peak = balance;
-    let maxDrawdown = 0;
-    let spinsPlayed = 0;
-    for (let i = 0; i < maxSpins; i++) {
-      if (balance < bet) { busted = true; break; }
-      balance -= bet;
-      const grid = [];
-      for (let r = 0; r < REEL_COUNT; r++) {
-        const row = [];
-        for (let c = 0; c < ROW_COUNT; c++) row.push(weightedRandomSymbol());
-        grid.push(row);
-      }
-      const { totalWin } = evaluateWins(grid, bet);
-      balance += totalWin;
-      spinsPlayed++;
-      path.push(balance);
-      if (balance > peak) peak = balance;
-      const drawdown = peak - balance;
-      if (drawdown > maxDrawdown) maxDrawdown = drawdown;
-      if (balance <= 0) { balance = 0; busted = true; break; }
-    }
-    return { path, spinsPlayed, busted, finalBalance: balance, maxDrawdown };
-  }
-
-  // Runs many independent sessions in chunks (never blocks the tab) to get
-  // stable statistics like bust probability, which a single session can't tell you.
-  function runSessionBatch(startingBalance, bet, maxSpins, sessionCount, onProgress, onDone) {
-    const CHUNK = 20;
-    let i = 0;
-    const sessions = [];
-    let bustedCount = 0, totalSpinsSurvived = 0, totalFinalBalance = 0, totalMaxDrawdown = 0;
-
-    function step() {
-      const end = Math.min(i + CHUNK, sessionCount);
-      for (; i < end; i++) {
-        const s = simulateSession(startingBalance, bet, maxSpins);
-        sessions.push(s);
-        if (s.busted) bustedCount++;
-        totalSpinsSurvived += s.spinsPlayed;
-        totalFinalBalance += s.finalBalance;
-        totalMaxDrawdown += s.maxDrawdown;
-      }
-      if (i < sessionCount) {
-        onProgress(i / sessionCount);
-        setTimeout(step, 0);
-        return;
-      }
-      onDone({
-        sessions,
-        bustProbability: bustedCount / sessionCount,
-        avgSpinsSurvived: totalSpinsSurvived / sessionCount,
-        avgFinalBalance: totalFinalBalance / sessionCount,
-        avgMaxDrawdown: totalMaxDrawdown / sessionCount,
-      });
-    }
-    step();
-  }
-
-  function renderSessionResults(result) {
-    el.sessionResults.innerHTML = `
-      <div class="panel-row"><span class="panel-label">Bust Probability</span><span class="panel-value gold">${(result.bustProbability * 100).toFixed(1)}%</span></div>
-      <div class="panel-row"><span class="panel-label">Avg Spins Survived</span><span class="panel-value">${result.avgSpinsSurvived.toFixed(1)}</span></div>
-      <div class="panel-row"><span class="panel-label">Avg Final Balance</span><span class="panel-value">${formatCredits(result.avgFinalBalance)}</span></div>
-      <div class="panel-row"><span class="panel-label">Avg Max Drawdown</span><span class="panel-value">${formatCredits(result.avgMaxDrawdown)}</span></div>
-    `;
-    renderSessionChart(result.sessions, result.sessions[0] ? result.sessions[0].path[0] : 0);
-  }
-
-  // Spaghetti-plot of sampled session paths (avoids Math.max(...bigArray),
-  // which can blow the call stack on large simulations) plus a bold median path.
-  function renderSessionChart(sessions, startingBalance) {
-    if (!sessions.length) { el.sessionChart.innerHTML = ""; return; }
-    const width = 600, height = 220;
-    let maxLen = 0;
-    let maxBalance = startingBalance * 1.2 || 1;
-    for (const s of sessions) {
-      if (s.path.length > maxLen) maxLen = s.path.length;
-      for (const b of s.path) if (b > maxBalance) maxBalance = b;
-    }
-
-    function toPoints(path) {
-      return path.map((bal, i) => {
-        const x = (i / (maxLen - 1)) * width;
-        const y = height - Math.max(0, Math.min(1, bal / maxBalance)) * height;
-        return `${x.toFixed(1)},${y.toFixed(1)}`;
-      }).join(" ");
-    }
-
-    const sampleCount = Math.min(sessions.length, 60);
-    const step = Math.max(1, Math.floor(sessions.length / sampleCount));
-    let svg = `<line x1="0" y1="${(height - (startingBalance / maxBalance) * height).toFixed(1)}" x2="${width}" y2="${(height - (startingBalance / maxBalance) * height).toFixed(1)}" stroke="var(--panel-line)" stroke-width="1" stroke-dasharray="4 4" />`;
-    for (let i = 0; i < sessions.length; i += step) {
-      svg += `<polyline points="${toPoints(sessions[i].path)}" fill="none" stroke="var(--gold-dim)" stroke-width="1" opacity="0.4" />`;
-    }
-    const sortedByFinal = sessions.slice().sort((a, b) => a.finalBalance - b.finalBalance);
-    const median = sortedByFinal[Math.floor(sortedByFinal.length / 2)];
-    svg += `<polyline points="${toPoints(median.path)}" fill="none" stroke="var(--gold-bright)" stroke-width="2.5" />`;
-    el.sessionChart.innerHTML = svg;
-  }
-
-  // Sweeps every standard bet size against the same starting balance and
-  // session length, chaining chunked session batches so the whole sweep
-  // never blocks the tab even though it runs many spins in total.
-  function runBetSweep(startingBalance, maxSpins, sessionCount, onProgress, onDone) {
-    const results = [];
-    let idx = 0;
-    function step() {
-      const bet = BET_STEPS[idx];
-      runSessionBatch(startingBalance, bet, maxSpins, sessionCount, () => {}, (agg) => {
-        results.push({ bet, ...agg });
-        idx++;
-        onProgress(idx / BET_STEPS.length);
-        if (idx < BET_STEPS.length) setTimeout(step, 0);
-        else onDone(results);
-      });
-    }
-    step();
-  }
-
-  function renderBetSweep(results) {
-    const RISK_THRESHOLD = 0.05;
-    let recommended = results[0];
-    for (const r of results) {
-      if (r.bustProbability <= RISK_THRESHOLD) recommended = r;
-    }
-    const rows = results.map(r => `
-      <tr class="${r === recommended ? "bet-sweep-best" : ""}">
-        <td>${r.bet.toFixed(2)}${r === recommended ? " ★" : ""}</td>
-        <td>${(r.bustProbability * 100).toFixed(1)}%</td>
-        <td>${r.avgSpinsSurvived.toFixed(1)}</td>
-        <td>${formatCredits(r.avgFinalBalance)}</td>
-      </tr>`).join("");
-    el.betSweepResults.innerHTML = `
-      <p class="dev-hint">★ = largest bet size keeping bust risk at or below 5% for this balance, at the current RTP and volatility settings.</p>
-      <table class="dev-table bet-sweep-table">
-        <thead><tr><th>Bet</th><th>Bust Risk</th><th>Avg Spins Survived</th><th>Avg Final Balance</th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-    `;
   }
 
   // ---------- Secret "zolca" easter egg ----------
@@ -1299,110 +730,9 @@
       el.muteToggle.textContent = newMuted ? "🔇" : "🔊";
     });
 
-    el.openDevmode.addEventListener("click", () => {
-      el.devBackdrop.classList.add("show");
-      el.sessionBalanceInput.value = balance.toFixed(2);
-      el.sessionBetInput.value = betAmount.toFixed(2);
-    });
-    el.closeDevmode.addEventListener("click", () => {
-      el.devBackdrop.classList.remove("show");
-    });
-    el.devBackdrop.addEventListener("click", (e) => {
-      if (e.target === el.devBackdrop) el.devBackdrop.classList.remove("show");
-    });
-
-    el.presetButtons.forEach(btn => {
-      btn.addEventListener("click", () => applyPreset(btn.dataset.preset));
-    });
-
-    el.targetRtpSlider.addEventListener("input", () => {
-      targetRTP = parseFloat(el.targetRtpSlider.value);
-      el.targetRtpValue.textContent = targetRTP.toFixed(1) + "%";
-    });
-    el.applyTargetRtp.addEventListener("click", () => {
-      applyTargetRTP(targetRTP);
-      buildDevSymbolTable();
-      buildPaytable();
-      saveDevConfig();
-    });
-
-    el.devSymbolTbody.addEventListener("input", (e) => {
-      const t = e.target;
-      if (t.tagName !== "INPUT") return;
-      const idx = parseInt(t.dataset.idx, 10);
-      const field = t.dataset.field;
-      const val = parseFloat(t.value);
-      if (Number.isNaN(val) || val < 0) return;
-      SYMBOLS[idx][field] = val;
-      recalcDerived();
-      refreshRTPDisplays();
-      buildPaytable();
-      saveDevConfig();
-    });
-
-    el.runSimulation.addEventListener("click", () => {
-      const spins = parseInt(el.simSpins.value, 10);
-      el.runSimulation.disabled = true;
-      el.runSimulation.textContent = "Simulating… 0%";
-      runSimulation(
-        spins,
-        (frac) => { el.runSimulation.textContent = `Simulating… ${Math.round(frac * 100)}%`; },
-        (result) => {
-          renderSimResults(result);
-          renderHistogram(result.buckets, result.spins);
-          el.runSimulation.disabled = false;
-          el.runSimulation.textContent = "Run Simulation";
-        }
-      );
-    });
-
-    el.resetDevmode.addEventListener("click", resetDevMode);
-
-    el.runSessionSim.addEventListener("click", () => {
-      const startingBalance = Math.max(1, parseFloat(el.sessionBalanceInput.value) || 1000);
-      const bet = Math.max(0.1, parseFloat(el.sessionBetInput.value) || 1);
-      const maxSpins = parseInt(el.sessionSpinsSelect.value, 10);
-      const sessionCount = parseInt(el.sessionCountSelect.value, 10);
-      el.runSessionSim.disabled = true;
-      el.runBetSweep.disabled = true;
-      el.runSessionSim.textContent = "Simulating… 0%";
-      runSessionBatch(
-        startingBalance, bet, maxSpins, sessionCount,
-        (frac) => { el.runSessionSim.textContent = `Simulating… ${Math.round(frac * 100)}%`; },
-        (result) => {
-          renderSessionResults(result);
-          el.runSessionSim.disabled = false;
-          el.runBetSweep.disabled = false;
-          el.runSessionSim.textContent = "Run Session Simulation";
-        }
-      );
-    });
-
-    el.runBetSweep.addEventListener("click", () => {
-      const startingBalance = Math.max(1, parseFloat(el.sessionBalanceInput.value) || 1000);
-      const maxSpins = parseInt(el.sessionSpinsSelect.value, 10);
-      const sessionCount = parseInt(el.sessionCountSelect.value, 10);
-      el.runSessionSim.disabled = true;
-      el.runBetSweep.disabled = true;
-      el.runBetSweep.textContent = "Sweeping… 0%";
-      runBetSweep(
-        startingBalance, maxSpins, sessionCount,
-        (frac) => { el.runBetSweep.textContent = `Sweeping… ${Math.round(frac * 100)}%`; },
-        (results) => {
-          renderBetSweep(results);
-          el.runSessionSim.disabled = false;
-          el.runBetSweep.disabled = false;
-          el.runBetSweep.textContent = "Find Best Bet Size";
-        }
-      );
-    });
-
     window.addEventListener("resize", resizeConfettiCanvas);
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") {
-        el.paytableBackdrop.classList.remove("show");
-        el.devBackdrop.classList.remove("show");
-      }
+      if (e.key === "Escape") el.paytableBackdrop.classList.remove("show");
       if (e.code === "Space" && document.activeElement.tagName !== "SELECT" && document.activeElement.tagName !== "BUTTON" && document.activeElement.tagName !== "INPUT") {
         e.preventDefault();
         if (!spinning) doSpin();
@@ -1414,16 +744,11 @@
   // ---------- Init ----------
   function init() {
     loadBalance();
-    loadDevConfig();
     buildReelsDom();
     resizeConfettiCanvas();
     updateBalanceDisplay();
     updateBetDisplay();
     buildPaytable();
-    buildDevSymbolTable();
-    highlightPresetButton();
-    el.targetRtpSlider.value = targetRTP;
-    el.targetRtpValue.textContent = targetRTP.toFixed(1) + "%";
     el.muteToggle.textContent = SoundEngine.isMuted() ? "🔇" : "🔊";
     wireEvents();
   }
