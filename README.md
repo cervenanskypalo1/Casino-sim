@@ -1,4 +1,4 @@
-# Firebird 81 — Unofficial Demo
+# Casino— Unofficial Demo
 
 A browser-based, no-build slot machine demo modeled on the real certified "Firebird 81" cabinet (Pravidlá hry č. 2024/2354, Technický skúšobný ústav Piešťany, a.s., valid from 02.12.2024). Built with vanilla HTML, CSS, and JavaScript — no dependencies, no build step, no server required.
 
@@ -16,7 +16,7 @@ Open `index.html` in a browser to play the slot. Open `lab.html` for the slot's 
 - **200× max-win cap per spin** and **€0.02–€1,000 stake limits**, both from the certified rules.
 - **Autoplay**, a **Riziko-style win banner** with tiered celebrations (Win / Big / Mega / Jackpot), confetti, and a full-screen jackpot overlay.
 - **Sound** — spin whoosh, reel ticks and landing thunks, tiered win chimes, and jackpot coin sounds, all synthesized live via the Web Audio API (no audio files). Mute toggle included.
-- **A secret keyboard code** (`zolca`) forces the next spin to a big, capped jackpot — handy for testing celebration states without grinding for one.
+- **A secret keyboard code** forces the next spin to a big, capped jackpot — handy for testing celebration states without grinding for one.
 
 ### RTP Lab (`lab.html`) — a standalone sub-site
 
