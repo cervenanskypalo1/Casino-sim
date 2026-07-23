@@ -912,3 +912,78 @@ html, body {
 }
 
 .dev-reset-row { display: flex; justify-content: flex-end; }
+
+/* ---------- Roulette Lab ---------- */
+.lab-page { max-width: 780px; }
+
+.chip-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.chip-row input[type="number"] {
+  width: 90px;
+  background: #0f1a16;
+  border: 1px solid var(--panel-line);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 7px 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.roulette-table-wrap {
+  overflow-x: auto;
+  margin-top: 10px;
+  padding-bottom: 4px;
+}
+
+.roulette-grid {
+  display: grid;
+  grid-template-columns: 56px repeat(12, 44px) 56px;
+  grid-template-rows: repeat(3, 48px) 40px 40px;
+  gap: 3px;
+  min-width: 720px;
+}
+
+.roul-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  user-select: none;
+  color: #fff;
+  transition: transform 0.1s ease, box-shadow 0.15s ease;
+}
+.roul-cell:hover { transform: scale(1.05); box-shadow: 0 0 0 2px var(--gold-dim) inset; }
+.roul-cell.selected { box-shadow: 0 0 0 3px var(--gold-bright) inset; }
+
+.roul-red { background: #b5342f; }
+.roul-black { background: #1c2420; border: 1px solid #333; }
+.roul-green { background: #1f7a4d; }
+.roul-zero { font-size: 1rem; }
+
+.roul-outside {
+  background: #14201c;
+  border: 1px solid var(--panel-line);
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  text-align: center;
+  padding: 4px;
+}
+.roul-outside.roul-red, .roul-outside.roul-black { color: #fff; font-size: 0.75rem; }
+
+.bet-remove {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 0.75rem;
+  margin-left: 6px;
+  padding: 0 2px;
+}
+.bet-remove:hover { color: var(--red); }

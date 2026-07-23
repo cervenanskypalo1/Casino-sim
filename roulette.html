@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Firebird 81 — Roulette Lab</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="table-felt lab-page">
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-icon">🎲</span>
+      <span class="brand-name">Roulette Lab</span>
+      <span class="demo-badge">UNOFFICIAL DEMO — NO REAL MONEY</span>
+    </div>
+    <div class="topbar-actions">
+      <a class="mini-btn" href="index.html">🎰 Slot</a>
+      <a class="mini-btn" href="lab.html">🛠 Slot RTP Lab</a>
+    </div>
+  </header>
+
+  <p class="modal-sub">European roulette, 37 pockets (single zero). The wheel is a genuinely fair, unweighted random draw over all 37 pockets every spin — exactly like a physical wheel — there is no configurable probability table here, unlike the slot. The entire house edge comes from the payout odds: every standard bet covers some fraction of the 37 pockets but pays slightly less than true odds, which is why every bet type below computes to exactly the same 36/37 = 97.30% RTP.</p>
+
+  <div class="panel-card">
+    <div class="dev-section-title">Chip Amount</div>
+    <div class="chip-row">
+      <input type="number" id="chip-amount" min="0.1" step="0.5" value="1">
+      <button class="text-btn small" data-chip="1">1</button>
+      <button class="text-btn small" data-chip="5">5</button>
+      <button class="text-btn small" data-chip="10">10</button>
+      <button class="text-btn small" data-chip="25">25</button>
+      <button class="text-btn small" data-chip="100">100</button>
+    </div>
+  </div>
+
+  <div class="panel-card">
+    <div class="dev-section-title">Table</div>
+    <div class="roulette-table-wrap">
+      <div class="roulette-grid" id="roulette-grid"></div>
+    </div>
+    <p class="dev-hint" id="selection-info">Click numbers on the table to build a Straight / Split / Street / Corner / Six Line bet.</p>
+    <div class="session-buttons">
+      <button class="text-btn small" id="place-selection" disabled>Place Bet</button>
+      <button class="text-btn small" id="clear-selection">Clear Selection</button>
+    </div>
+  </div>
+
+  <div class="panel-card">
+    <div class="dev-math-grid" id="rtp-math-grid"></div>
+  </div>
+
+  <div class="panel-card">
+    <div class="dev-section-title">Current Bets</div>
+    <ul id="bets-list" class="lines-list">
+      <li class="lines-list-empty">No bets placed yet</li>
+    </ul>
+    <div class="session-buttons">
+      <button class="text-btn small" id="clear-all-bets">Clear All Bets</button>
+    </div>
+  </div>
+
+  <div class="panel-card">
+    <div class="dev-section-title">Simulation (fast-forward, no animation)</div>
+    <div class="sim-controls">
+      <select id="sim-spins">
+        <option value="1000">1,000 spins</option>
+        <option value="10000" selected>10,000 spins</option>
+        <option value="100000">100,000 spins</option>
+        <option value="500000">500,000 spins</option>
+      </select>
+      <button class="text-btn small" id="run-simulation">Run Simulation</button>
+    </div>
+    <div class="sim-results" id="sim-results">
+      <p class="lines-list-empty">Place at least one bet, then run a simulation to see measured RTP converge on 97.30%.</p>
+    </div>
+  </div>
+
+  <div class="panel-card">
+    <div class="dev-section-title">Bankroll Session Simulator</div>
+    <p class="dev-hint">Plays your current bet spread every spin from a real starting balance, exactly like the slot's session simulator, so you can see how a real bankroll actually holds up against a fixed 2.70% house edge.</p>
+    <div class="session-controls">
+      <label>Starting Balance<input type="number" id="session-balance" min="1" step="10" value="1000"></label>
+      <label>Spins / Session
+        <select id="session-spins">
+          <option value="50">50</option>
+          <option value="100" selected>100</option>
+          <option value="250">250</option>
+          <option value="500">500</option>
+        </select>
+      </label>
+      <label>Sessions
+        <select id="session-count">
+          <option value="100">100</option>
+          <option value="300" selected>300</option>
+          <option value="1000">1000</option>
+        </select>
+      </label>
+    </div>
+    <div class="session-buttons">
+      <button class="text-btn small" id="run-session-sim">Run Session Simulation</button>
+    </div>
+    <div class="session-results" id="session-results">
+      <p class="lines-list-empty">Run a session simulation to see bust probability, drawdown, best session, session profit odds, and a balance-over-time fan chart.</p>
+    </div>
+    <div class="session-chart-wrap">
+      <svg id="session-chart" class="session-chart" viewBox="0 0 600 220" preserveAspectRatio="none"></svg>
+    </div>
+  </div>
+
+  <p class="disclaimer">Unofficial fan-made demo for entertainment/educational use only. Credits have no monetary value and cannot be redeemed for cash or prizes.</p>
+</div>
+
+<script src="roulette-engine.js"></script>
+<script src="roulette.js"></script>
+</body>
+</html>
